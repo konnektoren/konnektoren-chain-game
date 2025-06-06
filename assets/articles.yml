@@ -1,0 +1,252 @@
+!multiple-choice
+id: "articles"
+name: "Artikel"
+lang: "de"
+options:
+  - id: 0
+    name: "der"
+  - id: 1
+    name: "die"
+  - id: 2
+    name: "das"
+
+questions:
+  - question: "Haus"
+    help: "Ich habe ein neues Haus gekauft."
+    option: 2
+    image: "fa-regular fa-house-chimney-window"
+  - question: "Hund"
+    help: "Mein Hund ist sehr lieb."
+    option: 0
+    image: "fa-regular fa-dog"
+  - question: "Katze"
+    help: "Meine Katze ist sehr verschmust."
+    option: 1
+    image: "fa-regular fa-cat"
+  - question: "Auto"
+    help: "Mein Auto ist kaputt."
+    option: 2
+    image: "fa-regular fa-car"
+  - question: "Buch"
+    help: "Ich lese ein interessantes Buch."
+    option: 2
+    image: "fa-regular fa-book"
+  - question: "Stuhl"
+    help: "Ich habe einen neuen Stuhl gekauft."
+    option: 0
+    image: "fa-regular fa-chair"
+  - question: "Tisch"
+    help: "Ich habe einen neuen Tisch gekauft."
+    option: 0
+  - question: "Tür"
+    help: "Ich habe eine neue Tür gekauft."
+    option: 1
+    image: "fa-regular fa-door-open"
+  - question: "Lampe"
+    help: "Ich habe eine neue Lampe gekauft."
+    option: 1
+    image: "fa-regular fa-lightbulb"
+  - question: "Bett"
+    help: "Ich habe ein neues Bett gekauft."
+    option: 2
+    image: "fa-bed"
+  - question: "Apfel"
+    help: "Der Apfel ist rot und süß."
+    option: 0
+    image: "fa-regular fa-apple-whole"
+  - question: "Banane"
+    help: "Die Banane ist gelb und krumm."
+    option: 1
+    image: "fa-regular fa-banana"
+  - question: "Wasser"
+    help: "Das Wasser ist kalt und frisch."
+    option: 2
+    image: "fa-regular fa-glass-water"
+  - question: "Brot"
+    help: "Das Brot ist frisch gebacken."
+    option: 2
+    image: "fa-regular fa-bread-slice"
+  - question: "Käse"
+    help: "Der Käse schmeckt gut."
+    option: 0
+    image: "fa-regular fa-cheese"
+  - question: "Milch"
+    help: "Die Milch ist in der Küche."
+    option: 1
+    image: "fa-regular fa-bottle-water"
+  - question: "Ei"
+    help: "Das Ei ist gekocht."
+    option: 2
+    image: "fa-regular fa-egg"
+  - question: "Kaffee"
+    help: "Der Kaffee ist heiß."
+    option: 0
+    image: "fa-regular fa-mug-hot"
+  - question: "Tee"
+    help: "Der Tee ist grün."
+    option: 0
+    image: "fa-regular fa-mug-saucer"
+  - question: "Zucker"
+    help: "Der Zucker ist süß."
+    option: 0
+    image: "fa-regular fa-cubes"
+  - question: "Salz"
+    help: "Das Salz ist in der Küche."
+    option: 2
+    image: "fa-regular fa-salt-shaker"
+  - question: "Butter"
+    help: "Die Butter ist weich."
+    option: 1
+    image: "fa-regular fa-butter"
+  - question: "Messer"
+    help: "Das Messer ist scharf."
+    option: 2
+    image: "fa-regular fa-knife"
+  - question: "Gabel"
+    help: "Die Gabel ist sauber."
+    option: 1
+    image: "fa-regular fa-utensils"
+  - question: "Löffel"
+    help: "Der Löffel ist aus Silber."
+    option: 0
+    image: "fa-regular fa-spoon"
+  - question: "Teller"
+    help: "Der Teller ist leer."
+    option: 0
+    image: "fa-regular fa-plate-utensils"
+  - question: "Glas"
+    help: "Das Glas ist voll."
+    option: 2
+    image: "fa-regular fa-wine-glass"
+  - question: "Flasche"
+    help: "Die Flasche ist aus Plastik."
+    option: 1
+    image: "fa-regular fa-bottle-water"
+  - question: "Kühlschrank"
+    help: "Der Kühlschrank ist groß."
+    option: 0
+    image: "fa-regular fa-refrigerator"
+  - question: "Ofen"
+    help: "Der Ofen ist heiß."
+    option: 0
+    image: "fa-regular fa-oven"
+  - question: "Waschmaschine"
+    help: "Die Waschmaschine ist neu."
+    option: 1
+    image: "fa-regular fa-washing-machine"
+  - question: "Fenster"
+    help: "Das Fenster ist offen."
+    option: 2
+    image: "fa-regular fa-window"
+  - question: "Wand"
+    help: "Die Wand ist weiß."
+    option: 1
+    image: "fa-regular fa-square"
+  - question: "Dach"
+    help: "Das Dach ist rot."
+    option: 2
+    image: "fa-regular fa-home"
+  - question: "Boden"
+    help: "Der Boden ist aus Holz."
+    option: 0
+    image: "fa-regular fa-square"
+  - question: "Decke"
+    help: "Die Decke ist hoch."
+    option: 1
+    image: "fa-regular fa-square-up"
+  - question: "Schlüssel"
+    help: "Der Schlüssel ist verloren."
+    option: 0
+    image: "fa-regular fa-key"
+  - question: "Tasche"
+    help: "Die Tasche ist schwer."
+    option: 1
+    image: "fa-regular fa-bag-shopping"
+  - question: "Handy"
+    help: "Das Handy ist neu."
+    option: 2
+    image: "fa-regular fa-mobile"
+  - question: "Computer"
+    help: "Der Computer ist kaputt."
+    option: 0
+    image: "fa-regular fa-desktop"
+  - question: "Fernseher"
+    help: "Der Fernseher ist groß."
+    option: 0
+    image: "fa-regular fa-tv"
+  - question: "Radio"
+    help: "Das Radio spielt Musik."
+    option: 2
+    image: "fa-regular fa-radio"
+  - question: "Uhr"
+    help: "Die Uhr zeigt die Zeit."
+    option: 1
+    image: "fa-regular fa-clock"
+  - question: "Bild"
+    help: "Das Bild hängt an der Wand."
+    option: 2
+    image: "fa-regular fa-image"
+  - question: "Blume"
+    help: "Die Blume ist rot."
+    option: 1
+    image: "fa-regular fa-flower"
+  - question: "Baum"
+    help: "Der Baum ist groß und grün."
+    option: 0
+    image: "fa-regular fa-tree"
+  - question: "Gras"
+    help: "Das Gras ist grün."
+    option: 2
+    image: "fa-regular fa-leaf"
+  - question: "Sonne"
+    help: "Die Sonne scheint hell."
+    option: 1
+    image: "fa-regular fa-sun"
+  - question: "Mond"
+    help: "Der Mond ist hell in der Nacht."
+    option: 0
+    image: "fa-regular fa-moon"
+  - question: "Stern"
+    help: "Der Stern leuchtet am Himmel."
+    option: 0
+    image: "fa-regular fa-star"
+  - question: "Wolke"
+    help: "Die Wolke ist weiß und flauschig."
+    option: 1
+    image: "fa-regular fa-cloud"
+  - question: "Regen"
+    help: "Der Regen fällt vom Himmel."
+    option: 0
+    image: "fa-regular fa-cloud-rain"
+  - question: "Schnee"
+    help: "Der Schnee ist weiß und kalt."
+    option: 0
+    image: "fa-regular fa-snowflake"
+  - question: "Wind"
+    help: "Der Wind bläst stark."
+    option: 0
+    image: "fa-regular fa-wind"
+  - question: "Straße"
+    help: "Die Straße ist lang."
+    option: 1
+    image: "fa-regular fa-road"
+  - question: "Bus"
+    help: "Der Bus ist voll."
+    option: 0
+    image: "fa-regular fa-bus"
+  - question: "Zug"
+    help: "Der Zug ist schnell."
+    option: 0
+    image: "fa-regular fa-train"
+  - question: "Fahrrad"
+    help: "Das Fahrrad ist neu."
+    option: 2
+    image: "fa-regular fa-bicycle"
+  - question: "Flugzeug"
+    help: "Das Flugzeug fliegt hoch."
+    option: 2
+    image: "fa-regular fa-plane"
+  - question: "Schiff"
+    help: "Das Schiff schwimmt im Meer."
+    option: 2
+    image: "fa-regular fa-ship"

@@ -6,12 +6,15 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.16", features = ["wayland"] }
+konnektoren-core = { git = "https://github.com/konnektoren/konnektoren-rs.git", default-features = false }
 rand = "0.8"
 # Compile low-severity logs out of native builds for performance.
 log = { version = "0.4", features = [
     "max_level_debug",
     "release_max_level_warn",
 ] }
+serde = "1"
+serde_json = "1.0"
 # Compile low-severity logs out of web builds for performance.
 tracing = { version = "0.1", features = [
     "max_level_debug",
