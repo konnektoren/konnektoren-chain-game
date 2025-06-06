@@ -14,7 +14,7 @@ log = { version = "0.4", features = [
     "release_max_level_warn",
 ] }
 serde = "1"
-serde_json = "1.0"
+serde_yaml = "0.9.34-deprecated"
 # Compile low-severity logs out of web builds for performance.
 tracing = { version = "0.1", features = [
     "max_level_debug",

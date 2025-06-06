@@ -7,8 +7,14 @@ pub struct MultipleChoiceChallenge(MultipleChoice);
 impl Default for MultipleChoiceChallenge {
     fn default() -> Self {
         let challenge: MultipleChoice =
-            serde_json::from_str(include_str!("../assets/articles.yml"))
+            serde_yaml::from_str(include_str!("../assets/articles.yml"))
                 .expect("Failed to parse multiple choice data");
         Self(challenge)
+    }
+}
+
+impl MultipleChoiceChallenge {
+    pub fn get(&self) -> &MultipleChoice {
+        &self.0
     }
 }

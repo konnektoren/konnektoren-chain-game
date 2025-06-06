@@ -25,6 +25,9 @@ impl Plugin for AppPlugin {
                 }),
         );
 
+        // Initialize resources
+        app.init_resource::<resources::MultipleChoiceChallenge>();
+
         // Add other plugins.
         app.add_plugins((
             asset_tracking::plugin,
@@ -34,6 +37,7 @@ impl Plugin for AppPlugin {
             dev_tools::plugin,
             map::plugin,
             menus::plugin,
+            question::plugin,
             screens::plugin,
             theme::plugin,
         ));
