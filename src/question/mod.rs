@@ -11,9 +11,6 @@ pub(super) fn plugin(app: &mut App) {
     app.register_type::<QuestionTimer>();
     app.register_type::<QuestionDisplay>();
     app.register_type::<QuestionHelpDisplay>();
-    app.register_type::<QuestionSeed>();
-
-    app.init_resource::<QuestionSeed>();
 
     app.add_systems(
         OnEnter(crate::screens::Screen::Gameplay),

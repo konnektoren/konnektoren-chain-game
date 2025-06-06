@@ -2238,9 +2238,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26145e563e54f2cadc477553f1ec5ee650b00862f0a58bcd12cbdc5f0ea2d2f4"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi",
  "wasi 0.14.2+wasi-0.2.4",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -2692,9 +2694,10 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "konnektoren-chain-game"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bevy",
+ "getrandom 0.3.3",
  "konnektoren-core",
  "log",
  "rand",

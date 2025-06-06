@@ -5,7 +5,7 @@ use bevy::prelude::*;
 /// System to set up the question system when entering gameplay
 pub fn setup_question_system(
     mut commands: Commands,
-    seed: Res<QuestionSeed>,
+    time: Res<Time>,
     challenge_resource: Option<Res<MultipleChoiceChallenge>>,
 ) {
     // Get the multiple choice data from the resource or use default
@@ -24,8 +24,11 @@ pub fn setup_question_system(
         multiple_choice.questions.len()
     );
 
+    // Use Bevy's elapsed time as seed (works on all platforms)
+    let seed = (time.elapsed_secs() * 1000000.0) as u64;
+
     // Initialize the question system
-    let question_system = QuestionSystem::new(&multiple_choice, seed.0);
+    let question_system = QuestionSystem::new(&multiple_choice, seed);
 
     // Spawn the question UI
     spawn_question_ui(&mut commands, &question_system);
