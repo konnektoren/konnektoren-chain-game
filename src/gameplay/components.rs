@@ -26,18 +26,8 @@ impl GameplayScore {
             .insert(player_entity, PlayerScore::new(player_name));
     }
 
-    pub fn get_player_score(&self, player_entity: Entity) -> Option<&PlayerScore> {
-        self.players.get(&player_entity)
-    }
-
     pub fn get_player_score_mut(&mut self, player_entity: Entity) -> Option<&mut PlayerScore> {
         self.players.get_mut(&player_entity)
-    }
-
-    pub fn get_leaderboard(&self) -> Vec<(Entity, &PlayerScore)> {
-        let mut players: Vec<_> = self.players.iter().map(|(e, s)| (*e, s)).collect();
-        players.sort_by(|a, b| b.1.total_score.cmp(&a.1.total_score));
-        players
     }
 }
 
@@ -120,10 +110,6 @@ impl Default for GameTimer {
 }
 
 impl GameTimer {
-    pub fn time_elapsed(&self) -> f32 {
-        self.timer.elapsed_secs()
-    }
-
     pub fn time_remaining_formatted(&self) -> String {
         if self.is_overtime {
             let overtime = self.timer.elapsed_secs() - self.game_duration;
@@ -141,10 +127,6 @@ impl GameTimer {
             )
         }
     }
-
-    pub fn is_finished(&self) -> bool {
-        self.timer.finished()
-    }
 }
 
 /// Events for score updates
@@ -152,16 +134,13 @@ impl GameTimer {
 pub struct ScoreUpdateEvent {
     pub player_entity: Entity,
     pub is_correct: bool,
-    pub option_text: String,
     pub points_awarded: i32,
 }
 
-/// Events for game timer
+/// Events for game timer - simplified to only what's used
 #[derive(Event)]
 pub enum GameTimerEvent {
-    GameStarted,
     GameEnded,
-    TimeWarning { seconds_remaining: f32 },
 }
 
 /// Component for score display UI

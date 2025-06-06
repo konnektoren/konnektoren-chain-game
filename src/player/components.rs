@@ -1,4 +1,3 @@
-use crate::map::GridPosition;
 use bevy::prelude::*;
 
 /// The main player character
@@ -10,7 +9,7 @@ pub struct Player;
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct PlayerController {
-    pub move_timer: Timer,
+    pub move_speed: f32,
     pub movement_input: Vec2,
     pub can_move: bool,
 }
@@ -18,7 +17,7 @@ pub struct PlayerController {
 impl Default for PlayerController {
     fn default() -> Self {
         Self {
-            move_timer: Timer::from_seconds(super::PLAYER_MOVE_INTERVAL, TimerMode::Repeating),
+            move_speed: super::PLAYER_MOVE_SPEED,
             movement_input: Vec2::ZERO,
             can_move: true,
         }
@@ -31,7 +30,7 @@ impl Default for PlayerController {
 pub struct PlayerVisual;
 
 /// Component to track player statistics
-#[derive(Component, Reflect)]
+#[derive(Component, Reflect, Default)]
 #[reflect(Component)]
 pub struct PlayerStats {
     pub score: u32,
@@ -39,18 +38,6 @@ pub struct PlayerStats {
     pub wrong_answers: u32,
     pub current_streak: u32,
     pub best_streak: u32,
-}
-
-impl Default for PlayerStats {
-    fn default() -> Self {
-        Self {
-            score: 0,
-            correct_answers: 0,
-            wrong_answers: 0,
-            current_streak: 0,
-            best_streak: 0,
-        }
-    }
 }
 
 /// Event fired when player collects an option

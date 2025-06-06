@@ -176,7 +176,7 @@ pub fn cleanup_expired_options(
 
     for (entity, option) in &options_query {
         if option.is_expired(current_time) {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
     }
 }
@@ -193,7 +193,7 @@ pub fn clear_options_on_question_change(
             options_query.iter().count()
         );
         for entity in &options_query {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
     }
 }

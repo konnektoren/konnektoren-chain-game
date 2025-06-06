@@ -35,32 +35,6 @@ impl Default for GridMap {
 }
 
 impl GridMap {
-    pub fn new(width: usize, height: usize, cell_size: f32) -> Self {
-        let mut cells = Vec::with_capacity(height);
-        for y in 0..height {
-            let mut row = Vec::with_capacity(width);
-            for x in 0..width {
-                row.push(GridCell::new(x, y));
-            }
-            cells.push(row);
-        }
-
-        Self {
-            width,
-            height,
-            cell_size,
-            cells,
-        }
-    }
-
-    pub fn get_cell(&self, x: usize, y: usize) -> Option<&GridCell> {
-        self.cells.get(y)?.get(x)
-    }
-
-    pub fn get_cell_mut(&mut self, x: usize, y: usize) -> Option<&mut GridCell> {
-        self.cells.get_mut(y)?.get_mut(x)
-    }
-
     pub fn world_to_grid(&self, world_pos: Vec2) -> Option<(usize, usize)> {
         let half_width = (self.width as f32 * self.cell_size) / 2.0;
         let half_height = (self.height as f32 * self.cell_size) / 2.0;

@@ -24,6 +24,5 @@ pub(super) fn plugin(app: &mut App) {
 // Configuration constants
 pub const GRID_SIZE: usize = 20;
 pub const CELL_SIZE: f32 = 32.0;
-pub const GRID_LINE_WIDTH: f32 = 1.0;
 pub const GRID_COLOR: Color = Color::srgba(0.3, 0.3, 0.4, 0.8);
 pub const BACKGROUND_COLOR: Color = Color::srgb(0.1, 0.1, 0.15);

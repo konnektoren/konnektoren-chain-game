@@ -1,5 +1,5 @@
 use super::components::*;
-use super::{BACKGROUND_COLOR, GRID_COLOR, GRID_LINE_WIDTH};
+use super::{BACKGROUND_COLOR, GRID_COLOR};
 use crate::screens::Screen;
 use bevy::prelude::*;
 
@@ -115,29 +115,5 @@ pub fn update_grid_visualization(
         for mut _transform in &mut grid_query {
             // Future: Update particle effects, cell colors, etc.
         }
-    }
-}
-
-/// Helper function to convert world position to grid coordinates
-pub fn world_to_grid_position(world_pos: Vec2, grid_map: &GridMap) -> Option<GridPosition> {
-    grid_map
-        .world_to_grid(world_pos)
-        .map(|(x, y)| GridPosition::new(x, y))
-}
-
-/// Helper function to convert grid position to world coordinates
-pub fn grid_to_world_position(grid_pos: &GridPosition, grid_map: &GridMap) -> Vec2 {
-    grid_map.grid_to_world(grid_pos.x, grid_pos.y)
-}
-
-/// System to snap entities with GridPosition to the grid
-pub fn snap_to_grid(
-    grid_map: Res<GridMap>,
-    mut query: Query<(&GridPosition, &mut Transform), Changed<GridPosition>>,
-) {
-    for (grid_pos, mut transform) in &mut query {
-        let world_pos = grid_to_world_position(grid_pos, &grid_map);
-        transform.translation.x = world_pos.x;
-        transform.translation.y = world_pos.y;
     }
 }

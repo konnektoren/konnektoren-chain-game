@@ -32,5 +32,5 @@ pub(super) fn plugin(app: &mut App) {
 }
 
 // Configuration constants
-pub const PLAYER_MOVE_INTERVAL: f32 = 0.3; // Move every 300ms
+pub const PLAYER_MOVE_SPEED: f32 = 200.0; // pixels per second
 pub const PLAYER_SIZE: f32 = 20.0;

@@ -1,5 +1,6 @@
 use super::components::*;
 use crate::{
+    input::{InputController, PlayerInputMapping},
     map::{GridMap, GridPosition},
     options::{OptionCollectible, OptionType},
     screens::Screen,
@@ -34,6 +35,8 @@ pub fn spawn_player(
         PlayerController::default(),
         PlayerStats::default(),
         PlayerVisual,
+        InputController::default(),    // Add input controller
+        PlayerInputMapping::default(), // Add input mapping
         Mesh2d(mesh),
         MeshMaterial2d(material),
         Transform::from_translation(Vec3::new(world_pos.x, world_pos.y, 2.0)), // Higher Z than options
@@ -47,129 +50,150 @@ pub fn spawn_player(
     );
 }
 
-/// System to handle player input
+/// System to handle player input using the new input system
 pub fn handle_player_input(
-    input: Res<ButtonInput<KeyCode>>,
-    mut player_query: Query<&mut PlayerController, With<Player>>,
+    mut player_query: Query<
+        (&mut PlayerController, &InputController),
+        (With<Player>, Changed<InputController>),
+    >,
 ) {
-    for mut controller in &mut player_query {
+    for (mut controller, input_controller) in &mut player_query {
         // Only accept input if player can move
         if !controller.can_move {
             continue;
         }
 
-        // Collect directional input
-        let mut movement = Vec2::ZERO;
-
-        if input.just_pressed(KeyCode::ArrowUp) || input.just_pressed(KeyCode::KeyW) {
-            movement.y = 1.0;
-        }
-        if input.just_pressed(KeyCode::ArrowDown) || input.just_pressed(KeyCode::KeyS) {
-            movement.y = -1.0;
-        }
-        if input.just_pressed(KeyCode::ArrowLeft) || input.just_pressed(KeyCode::KeyA) {
-            movement.x = -1.0;
-        }
-        if input.just_pressed(KeyCode::ArrowRight) || input.just_pressed(KeyCode::KeyD) {
-            movement.x = 1.0;
-        }
-
-        // Only allow one direction at a time (snake-like movement)
-        if movement != Vec2::ZERO {
-            if movement.x != 0.0 {
-                movement.y = 0.0; // Prioritize horizontal movement
-            }
-            controller.movement_input = movement;
-        }
+        // Use input from the InputController
+        controller.movement_input = input_controller.movement_input;
     }
 }
 
-/// System to move the player on the grid
+/// System to move the player smoothly
 pub fn move_player(
     time: Res<Time>,
     grid_map: Option<Res<GridMap>>,
-    mut player_query: Query<
-        (&mut PlayerController, &mut GridPosition, &mut Transform),
-        With<Player>,
-    >,
+    mut player_query: Query<(&PlayerController, &mut GridPosition, &mut Transform), With<Player>>,
 ) {
     let Some(grid_map) = grid_map else {
         return;
     };
 
-    for (mut controller, mut grid_pos, mut transform) in &mut player_query {
-        controller.move_timer.tick(time.delta());
+    for (controller, mut grid_pos, mut transform) in &mut player_query {
+        if controller.movement_input == Vec2::ZERO {
+            continue;
+        }
 
-        // Only move when timer finishes and there's input
-        if controller.move_timer.just_finished() && controller.movement_input != Vec2::ZERO {
-            let new_x = (grid_pos.x as i32 + controller.movement_input.x as i32).max(0) as usize;
-            let new_y = (grid_pos.y as i32 + controller.movement_input.y as i32).max(0) as usize;
+        // Calculate movement delta
+        let movement_delta = controller.movement_input * controller.move_speed * time.delta_secs();
 
-            // Clamp to grid bounds
-            let new_x = new_x.min(grid_map.width - 1);
-            let new_y = new_y.min(grid_map.height - 1);
+        // Update world position
+        let new_world_pos = Vec2::new(
+            transform.translation.x + movement_delta.x,
+            transform.translation.y + movement_delta.y,
+        );
 
-            // Update position if it changed
-            if new_x != grid_pos.x || new_y != grid_pos.y {
-                grid_pos.x = new_x;
-                grid_pos.y = new_y;
+        // Calculate grid bounds in world coordinates
+        let half_width = (grid_map.width as f32 * grid_map.cell_size) / 2.0;
+        let half_height = (grid_map.height as f32 * grid_map.cell_size) / 2.0;
+        let player_radius = super::PLAYER_SIZE;
 
-                let world_pos = grid_map.grid_to_world(new_x, new_y);
-                transform.translation.x = world_pos.x;
-                transform.translation.y = world_pos.y;
+        // Clamp to grid bounds (with player radius buffer)
+        let clamped_world_pos = Vec2::new(
+            new_world_pos
+                .x
+                .clamp(-half_width + player_radius, half_width - player_radius),
+            new_world_pos
+                .y
+                .clamp(-half_height + player_radius, half_height - player_radius),
+        );
 
-                info!("Player moved to ({}, {})", new_x, new_y);
-            }
+        // Update transform
+        transform.translation.x = clamped_world_pos.x;
+        transform.translation.y = clamped_world_pos.y;
 
-            // Clear input after processing
-            controller.movement_input = Vec2::ZERO;
+        // Update grid position based on current world position
+        if let Some((grid_x, grid_y)) = grid_map.world_to_grid(clamped_world_pos) {
+            grid_pos.x = grid_x;
+            grid_pos.y = grid_y;
         }
     }
 }
 
-/// System to handle option collection
+/// System to handle option collection with smooth movement
 pub fn collect_options(
     mut commands: Commands,
     mut event_writer: EventWriter<OptionCollectedEvent>,
-    mut player_query: Query<(Entity, &GridPosition), With<Player>>,
-    option_query: Query<(Entity, &GridPosition, &OptionCollectible, &OptionType), Without<Player>>,
+    mut player_query: Query<(Entity, &Transform), With<Player>>,
+    option_query: Query<
+        (Entity, &Transform, &OptionCollectible, &OptionType),
+        (Without<Player>, With<super::super::options::OptionVisual>),
+    >,
 ) {
-    for (player_entity, player_pos) in &mut player_query {
-        for (option_entity, option_pos, collectible, option_type) in &option_query {
-            // Check if player is on the same grid position as an option
-            if player_pos.x == option_pos.x && player_pos.y == option_pos.y {
+    for (player_entity, player_transform) in &mut player_query {
+        for (option_entity, option_transform, collectible, option_type) in &option_query {
+            // Calculate distance between player and option
+            let distance = player_transform
+                .translation
+                .xy()
+                .distance(option_transform.translation.xy());
+
+            // Collection radius (player size + option size)
+            let collection_radius = super::PLAYER_SIZE + 14.0; // Option size is 14.0
+
+            if distance <= collection_radius {
                 // Send collection event
-                event_writer.send(OptionCollectedEvent {
-                    player_entity, // Add this field
+                event_writer.write(OptionCollectedEvent {
+                    player_entity,
                     option_id: option_type.option_id,
                     is_correct: collectible.is_correct,
                     option_text: collectible.option_text.clone(),
                 });
 
                 // Remove the collected option
-                commands.entity(option_entity).despawn_recursive();
+                commands.entity(option_entity).despawn();
+
+                info!("Player collected option: {}", collectible.option_text);
             }
         }
     }
 }
 
-/// System to animate player (pulsing effect)
+/// System to animate player (pulsing effect and rotation based on movement)
 pub fn animate_player(
     time: Res<Time>,
-    mut player_query: Query<&mut Transform, (With<Player>, With<PlayerVisual>)>,
+    mut player_query: Query<
+        (&PlayerController, &mut Transform),
+        (With<Player>, With<PlayerVisual>),
+    >,
 ) {
     let time_factor = time.elapsed_secs() * 4.0; // Faster animation than options
 
-    for mut transform in &mut player_query {
+    for (controller, mut transform) in &mut player_query {
+        // Base pulsing effect
         let pulse = 1.0 + (time_factor.sin() * 0.1);
-        transform.scale = Vec3::splat(pulse);
+
+        // Scale up slightly when moving
+        let movement_scale = if controller.movement_input.length() > 0.1 {
+            1.1
+        } else {
+            1.0
+        };
+
+        transform.scale = Vec3::splat(pulse * movement_scale);
+
+        // Rotate based on movement direction
+        if controller.movement_input.length() > 0.1 {
+            let angle = controller
+                .movement_input
+                .y
+                .atan2(controller.movement_input.x);
+            transform.rotation = Quat::from_rotation_z(angle);
+        }
     }
 }
+
 /// System to handle option collection events and provide feedback
-pub fn handle_collection_events(
-    mut event_reader: EventReader<OptionCollectedEvent>,
-    mut commands: Commands,
-) {
+pub fn handle_collection_events(mut event_reader: EventReader<OptionCollectedEvent>) {
     for event in event_reader.read() {
         if event.is_correct {
             info!(

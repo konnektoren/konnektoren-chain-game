@@ -1,5 +1,5 @@
 use super::components::*;
-use crate::{screens::Screen, theme::prelude::*};
+use crate::screens::Screen;
 use bevy::prelude::*;
 
 /// System to set up the gameplay UI
@@ -81,7 +81,6 @@ pub fn update_game_timer(
     mut game_timer: ResMut<GameTimer>,
     mut timer_events: EventWriter<GameTimerEvent>,
 ) {
-    let was_finished = game_timer.timer.finished();
     game_timer.timer.tick(time.delta());
 
     // Update remaining time
@@ -91,21 +90,8 @@ pub fn update_game_timer(
     // Check for overtime
     if game_timer.timer.finished() && !game_timer.is_overtime {
         game_timer.is_overtime = true;
-        timer_events.send(GameTimerEvent::GameEnded);
+        timer_events.write(GameTimerEvent::GameEnded);
         info!("Game time ended! Entering overtime...");
-    }
-
-    // Send time warnings
-    let remaining = game_timer.time_remaining;
-    if !was_finished && remaining <= 30.0 && remaining > 29.0 {
-        timer_events.send(GameTimerEvent::TimeWarning {
-            seconds_remaining: 30.0,
-        });
-    }
-    if !was_finished && remaining <= 10.0 && remaining > 9.0 {
-        timer_events.send(GameTimerEvent::TimeWarning {
-            seconds_remaining: 10.0,
-        });
     }
 }
 
@@ -192,27 +178,6 @@ pub fn update_timer_display(
     }
 }
 
-/// Helper function to award points to a player
-pub fn award_points(
-    player_entity: Entity,
-    is_correct: bool,
-    option_text: String,
-    score_events: &mut EventWriter<ScoreUpdateEvent>,
-) {
-    let points = if is_correct {
-        super::CORRECT_ANSWER_POINTS as i32
-    } else {
-        super::WRONG_ANSWER_PENALTY
-    };
-
-    score_events.send(ScoreUpdateEvent {
-        player_entity,
-        is_correct,
-        option_text,
-        points_awarded: points,
-    });
-}
-
 /// System to convert option collection events to score update events
 pub fn handle_option_collection_events(
     mut collection_events: EventReader<crate::player::OptionCollectedEvent>,
@@ -225,10 +190,9 @@ pub fn handle_option_collection_events(
             super::WRONG_ANSWER_PENALTY
         };
 
-        score_events.send(ScoreUpdateEvent {
+        score_events.write(ScoreUpdateEvent {
             player_entity: event.player_entity,
             is_correct: event.is_correct,
-            option_text: event.option_text.clone(),
             points_awarded: points,
         });
     }

@@ -1,5 +1,5 @@
 use super::components::*;
-use crate::{resources::MultipleChoiceChallenge, screens::Screen, theme::prelude::*};
+use crate::{resources::MultipleChoiceChallenge, screens::Screen};
 use bevy::prelude::*;
 
 /// System to set up the question system when entering gameplay
