@@ -1,4 +1,24 @@
-# Konnektoren Chain Game
+# Konnektoren Chain - A Language Learning Adventure
 
-This project was generated using the [Bevy New 2D](https://github.com/TheBevyFlock/bevy_new_2d) template.
-Check out the [documentation](https://github.com/TheBevyFlock/bevy_new_2d/blob/main/README.md) to get started!
+**A Bevy Game Jam #6 Entry for the Konnektoren Learning Platform**
+
+## 🎮 Game Overview
+
+**Konnektoren Chain** is an educational mini game.
+
+The player controls a chain of answers through a challenge.
+Collecting correct answers will grow the chain, while wrong answers will shrink it.
+
+## 🌟 Theme Integration: Chain Reaction
+
+Experience the theme through dynamic particle systems where:
+- **Correct answers** will cause a chain reaction of positive feedback, enhancing the learning experience
+- **Wrong answers** will trigger a shrinking effect, visually representing the impact of mistakes
+- **Consecutive correct answers** will lead to a growing chain reaction, rewarding players with visual and auditory feedback
+
+## 🛠️ Technical Features
+
+- Built with **Bevy Engine** (Rust-based game engine)
+- Web-compatible build for easy access across platforms
+- Integration with Konnektoren's challenge system
+- Cross-platform support (Windows, Mac, Linux, Web)
