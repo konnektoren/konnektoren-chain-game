@@ -56,6 +56,7 @@ impl Default for PlayerStats {
 /// Event fired when player collects an option
 #[derive(Event)]
 pub struct OptionCollectedEvent {
+    pub player_entity: Entity,
     pub option_id: usize,
     pub is_correct: bool,
     pub option_text: String,

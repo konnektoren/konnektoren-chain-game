@@ -40,6 +40,7 @@ impl Plugin for AppPlugin {
             options::plugin,
             question::plugin,
             screens::plugin,
+            gameplay::plugin,
             theme::plugin,
         ));
 

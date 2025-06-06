@@ -131,42 +131,18 @@ pub fn move_player(
 pub fn collect_options(
     mut commands: Commands,
     mut event_writer: EventWriter<OptionCollectedEvent>,
-    mut player_query: Query<(&GridPosition, &mut PlayerStats), With<Player>>,
+    mut player_query: Query<(Entity, &GridPosition), With<Player>>,
     option_query: Query<(Entity, &GridPosition, &OptionCollectible, &OptionType), Without<Player>>,
-    question_system: Option<Res<crate::question::QuestionSystem>>,
 ) {
-    for (player_pos, mut stats) in &mut player_query {
+    for (player_entity, player_pos) in &mut player_query {
         for (option_entity, option_pos, collectible, option_type) in &option_query {
             // Check if player is on the same grid position as an option
             if player_pos.x == option_pos.x && player_pos.y == option_pos.y {
-                // Collect the option
-                let is_correct = collectible.is_correct;
-
-                // Update stats
-                if is_correct {
-                    stats.correct_answers += 1;
-                    stats.current_streak += 1;
-                    stats.score += 10 + (stats.current_streak * 5); // Bonus for streaks
-
-                    if stats.current_streak > stats.best_streak {
-                        stats.best_streak = stats.current_streak;
-                    }
-
-                    info!(
-                        "Correct answer! Score: {}, Streak: {}",
-                        stats.score, stats.current_streak
-                    );
-                } else {
-                    stats.wrong_answers += 1;
-                    stats.current_streak = 0; // Reset streak
-
-                    info!("Wrong answer! Streak reset. Score: {}", stats.score);
-                }
-
                 // Send collection event
                 event_writer.send(OptionCollectedEvent {
+                    player_entity, // Add this field
                     option_id: option_type.option_id,
-                    is_correct,
+                    is_correct: collectible.is_correct,
                     option_text: collectible.option_text.clone(),
                 });
 
