@@ -10,6 +10,7 @@ mod demo;
 mod dev_tools;
 mod map;
 mod menus;
+mod options;
 mod plugin;
 mod question;
 mod resources;

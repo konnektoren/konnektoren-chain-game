@@ -37,6 +37,7 @@ impl Plugin for AppPlugin {
             dev_tools::plugin,
             map::plugin,
             menus::plugin,
+            options::plugin,
             question::plugin,
             screens::plugin,
             theme::plugin,
