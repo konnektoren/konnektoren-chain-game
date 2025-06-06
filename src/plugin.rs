@@ -32,10 +32,10 @@ impl Plugin for AppPlugin {
         app.add_plugins((
             asset_tracking::plugin,
             audio::plugin,
-            demo::plugin,
             #[cfg(feature = "dev")]
             dev_tools::plugin,
             map::plugin,
+            player::plugin,
             menus::plugin,
             options::plugin,
             question::plugin,
