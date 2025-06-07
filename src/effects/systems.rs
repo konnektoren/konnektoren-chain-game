@@ -33,31 +33,6 @@ pub fn handle_explosion_events(
     }
 }
 
-/// System to handle collection events
-pub fn handle_collection_events(
-    mut commands: Commands,
-    mut collection_events: EventReader<SpawnCollectionEvent>,
-    mut effects: ResMut<Assets<EffectAsset>>,
-) {
-    for event in collection_events.read() {
-        // Create a custom effect with the ball's color
-        let collection_effect = create_colored_collection_effect(&mut effects, event.color);
-
-        commands.spawn((
-            Name::new("Collection Effect"),
-            CollectionEffect::new(1.0),
-            ParticleEffect::new(collection_effect),
-            Transform::from_translation(event.position),
-            StateScoped(crate::screens::Screen::Gameplay),
-        ));
-
-        info!(
-            "Spawned collection effect at {:?} with color {:?}",
-            event.position, event.color
-        );
-    }
-}
-
 /// Create a collection effect with a specific color
 fn create_colored_collection_effect(
     effects: &mut Assets<EffectAsset>,
@@ -229,5 +204,25 @@ pub fn cleanup_finished_effects(
         if effect.lifetime.finished() {
             commands.entity(entity).despawn();
         }
+    }
+}
+
+/// System to handle collection events
+pub fn handle_collection_events(
+    mut commands: Commands,
+    mut collection_events: EventReader<SpawnCollectionEvent>,
+    mut effects: ResMut<Assets<EffectAsset>>,
+) {
+    for event in collection_events.read() {
+        // Use the existing create_colored_collection_effect function
+        let collection_effect = create_colored_collection_effect(&mut effects, event.color);
+
+        commands.spawn((
+            Name::new("Collection Effect"),
+            CollectionEffect::new(1.0),
+            ParticleEffect::new(collection_effect),
+            Transform::from_translation(event.position),
+            StateScoped(crate::screens::Screen::Gameplay),
+        ));
     }
 }

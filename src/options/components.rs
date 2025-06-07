@@ -67,3 +67,78 @@ impl OptionType {
         Self { option_id }
     }
 }
+
+/// Component for option light effects
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct OptionLightEffect {
+    pub base_color: Color,
+    pub pulse_speed: f32,
+    pub pulse_intensity: f32,
+    pub particle_timer: Timer,
+    pub glow_radius: f32,
+    pub is_correct_answer: bool,
+}
+
+impl OptionLightEffect {
+    pub fn new(base_color: Color, is_correct: bool) -> Self {
+        Self {
+            base_color,
+            pulse_speed: if is_correct { 3.0 } else { 2.0 }, // Correct answers pulse faster
+            pulse_intensity: if is_correct { 0.8 } else { 0.5 },
+            particle_timer: Timer::from_seconds(0.3, TimerMode::Repeating),
+            glow_radius: if is_correct { 25.0 } else { 20.0 },
+            is_correct_answer: is_correct,
+        }
+    }
+}
+
+/// Component for the inner glow effect
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct OptionGlow;
+
+/// Component for the outer pulse ring
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct OptionPulseRing {
+    pub ring_phase: f32,
+    pub max_radius: f32,
+}
+
+impl OptionPulseRing {
+    pub fn new(max_radius: f32) -> Self {
+        Self {
+            ring_phase: 0.0,
+            max_radius,
+        }
+    }
+}
+
+/// Component for sparkle particles around options
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct OptionSparkles {
+    pub sparkle_timer: Timer,
+    pub sparkle_count: usize,
+    pub sparkle_intensity: f32, // Controls how often sparkles appear
+}
+
+impl OptionSparkles {
+    pub fn new(is_correct: bool) -> Self {
+        Self {
+            sparkle_timer: Timer::from_seconds(
+                if is_correct { 0.15 } else { 0.25 }, // Correct answers sparkle more frequently
+                TimerMode::Repeating,
+            ),
+            sparkle_count: if is_correct { 4 } else { 2 }, // More sparkles for correct answers
+            sparkle_intensity: if is_correct { 1.0 } else { 0.6 },
+        }
+    }
+}
+
+impl Default for OptionSparkles {
+    fn default() -> Self {
+        Self::new(false)
+    }
+}
