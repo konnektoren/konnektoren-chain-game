@@ -20,7 +20,7 @@ pub(super) fn plugin(app: &mut App) {
 
     app.init_resource::<ChainReactionState>();
 
-    // Run setup system after player spawns
+    // Run setup system after player spawns (which runs after map setup)
     app.add_systems(
         OnEnter(crate::screens::Screen::Gameplay),
         setup_player_chain.after(crate::player::spawn_player),

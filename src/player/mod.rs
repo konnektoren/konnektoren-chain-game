@@ -16,7 +16,11 @@ pub(super) fn plugin(app: &mut App) {
     // Register the event
     app.add_event::<OptionCollectedEvent>();
 
-    app.add_systems(OnEnter(crate::screens::Screen::Gameplay), spawn_player);
+    // Ensure player spawns after map is set up
+    app.add_systems(
+        OnEnter(crate::screens::Screen::Gameplay),
+        spawn_player.after(crate::map::setup_grid_map),
+    );
 
     app.add_systems(
         Update,

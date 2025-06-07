@@ -87,9 +87,12 @@ fn find_empty_spawn_position(
     let mut rng = rand::thread_rng();
     let max_attempts = 50;
 
+    // Use buffer based on map size - larger maps get smaller buffers
+    let buffer = if grid_map.width > 30 { 1 } else { 2 };
+
     for _ in 0..max_attempts {
-        let x = rng.gen_range(2..grid_map.width - 2);
-        let y = rng.gen_range(2..grid_map.height - 2);
+        let x = rng.gen_range(buffer..grid_map.width.saturating_sub(buffer));
+        let y = rng.gen_range(buffer..grid_map.height.saturating_sub(buffer));
 
         if !occupied_positions.contains(&(x, y)) {
             return Some(GridPosition::new(x, y));

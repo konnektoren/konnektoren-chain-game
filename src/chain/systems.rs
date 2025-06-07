@@ -144,16 +144,17 @@ pub fn update_chain_positions(
         return;
     };
 
-    let map_width = grid_map.width as f32 * grid_map.cell_size;
-    let map_height = grid_map.height as f32 * grid_map.cell_size;
-
     for player_chain in &player_chain_query {
         for &segment_entity in &player_chain.segments {
             if let Ok((segment, mut transform)) = segment_query.get_mut(segment_entity) {
                 let distance = (segment.segment_index + 1) as f32 * super::CHAIN_SEGMENT_SPACING;
 
                 if let Some(target_position) = movement_trail
-                    .get_position_at_distance_with_wraparound(distance, map_width, map_height)
+                    .get_position_at_distance_with_wraparound(
+                        distance,
+                        grid_map.world_width(),
+                        grid_map.world_height(),
+                    )
                 {
                     // Smooth movement to target position
                     let current_pos = transform.translation.xy();
@@ -162,8 +163,8 @@ pub fn update_chain_positions(
                     let new_pos = calculate_shortest_movement(
                         current_pos,
                         target_position,
-                        map_width / 2.0,
-                        map_height / 2.0,
+                        grid_map.half_width(),
+                        grid_map.half_height(),
                         0.15, // lerp factor
                     );
 

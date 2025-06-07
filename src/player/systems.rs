@@ -45,28 +45,9 @@ pub fn spawn_player(
     ));
 
     info!(
-        "Player spawned at grid position ({}, {})",
-        center_x, center_y
+        "Player spawned at grid position ({}, {}) in {}x{} map",
+        center_x, center_y, grid_map.width, grid_map.height
     );
-}
-
-/// System to handle player input using the new input system
-pub fn handle_player_input(
-    mut player_query: Query<
-        (&mut PlayerController, &InputController),
-        (With<Player>, Changed<InputController>),
-    >,
-) {
-    for (mut controller, input_controller) in &mut player_query {
-        // Only accept input if player can move
-        if !controller.can_move {
-            controller.movement_input = Vec2::ZERO;
-            continue;
-        }
-
-        // Use input from the InputController
-        controller.movement_input = input_controller.movement_input;
-    }
 }
 
 /// System to move the player smoothly with wraparound at borders
@@ -93,12 +74,9 @@ pub fn move_player(
             transform.translation.y + movement_delta.y,
         );
 
-        // Calculate grid bounds in world coordinates
-        let half_width = (grid_map.width as f32 * grid_map.cell_size) / 2.0;
-        let half_height = (grid_map.height as f32 * grid_map.cell_size) / 2.0;
-
-        // Handle wraparound - teleport to opposite side when crossing borders
-        let wrapped_world_pos = handle_map_wraparound(new_world_pos, half_width, half_height);
+        // Handle wraparound using grid map dimensions
+        let wrapped_world_pos =
+            handle_map_wraparound(new_world_pos, grid_map.half_width(), grid_map.half_height());
 
         // Update transform
         transform.translation.x = wrapped_world_pos.x;
@@ -109,6 +87,25 @@ pub fn move_player(
             grid_pos.x = grid_x;
             grid_pos.y = grid_y;
         }
+    }
+}
+
+/// System to handle player input using the new input system
+pub fn handle_player_input(
+    mut player_query: Query<
+        (&mut PlayerController, &InputController),
+        (With<Player>, Changed<InputController>),
+    >,
+) {
+    for (mut controller, input_controller) in &mut player_query {
+        // Only accept input if player can move
+        if !controller.can_move {
+            controller.movement_input = Vec2::ZERO;
+            continue;
+        }
+
+        // Use input from the InputController
+        controller.movement_input = input_controller.movement_input;
     }
 }
 
