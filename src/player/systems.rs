@@ -7,7 +7,7 @@ use crate::{
 };
 use bevy::prelude::*;
 
-/// System to spawn the player at the center of the grid
+/// System to spawn the player at the center of the grid with enhanced visuals
 pub fn spawn_player(
     mut commands: Commands,
     grid_map: Option<Res<GridMap>>,
@@ -15,9 +15,7 @@ pub fn spawn_player(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let Some(grid_map) = grid_map else {
-        error!(
-            "GridMap not available when trying to spawn player! Map may not be initialized yet."
-        );
+        error!("GridMap not available when trying to spawn player!");
         return;
     };
 
@@ -27,28 +25,104 @@ pub fn spawn_player(
     let grid_pos = GridPosition::new(center_x, center_y);
     let world_pos = grid_map.grid_to_world(center_x, center_y);
 
-    // Create player visual (a bright colored circle)
-    let mesh = meshes.add(Circle::new(super::PLAYER_SIZE));
-    let material = materials.add(ColorMaterial::from(Color::srgb(1.0, 0.8, 0.2))); // Bright yellow
+    let player_effects = PlayerEffects::default();
+    let player_color = player_effects.base_color;
 
-    commands.spawn((
-        Name::new("Player"),
-        Player,
-        PlayerController::default(),
-        PlayerStats::default(),
-        PlayerVisual,
+    // Create main player visual (layered design)
+    let main_mesh = meshes.add(Circle::new(super::PLAYER_SIZE));
+    let main_material = materials.add(ColorMaterial::from(player_color));
+
+    // Inner core (smaller, brighter)
+    let core_mesh = meshes.add(Circle::new(super::PLAYER_SIZE * 0.6));
+    let core_color = Color::srgb(1.0, 1.0, 1.0); // White core
+    let core_material = materials.add(ColorMaterial::from(core_color));
+
+    // Glow layer (larger, transparent)
+    let glow_mesh = meshes.add(Circle::new(super::PLAYER_SIZE * 1.4));
+    let glow_color = Color::srgba(
+        player_color.to_srgba().red,
+        player_color.to_srgba().green,
+        player_color.to_srgba().blue,
+        0.4,
+    );
+    let glow_material = materials.add(ColorMaterial::from(glow_color));
+
+    // Outer aura (even larger, very transparent)
+    let aura_mesh = meshes.add(Circle::new(super::PLAYER_SIZE * 2.0));
+    let aura_color = Color::srgba(
+        player_color.to_srgba().red,
+        player_color.to_srgba().green,
+        player_color.to_srgba().blue,
+        0.15,
+    );
+    let aura_material = materials.add(ColorMaterial::from(aura_color));
+
+    // Spawn the player entity with core components first
+    let player_entity = commands
+        .spawn((
+            Name::new("Player"),
+            Player,
+            PlayerController::default(),
+            PlayerStats::default(),
+            PlayerVisual,
+            Transform::from_translation(Vec3::new(world_pos.x, world_pos.y, 2.0)),
+            grid_pos,
+            StateScoped(Screen::Gameplay),
+        ))
+        .id();
+
+    // Add additional components in separate calls to avoid tuple size limits
+    commands.entity(player_entity).insert((
+        player_effects,
+        PlayerEnergyParticles::default(),
+        PlayerTrail::default(),
         InputController::default(),
         PlayerInputMapping::default(),
-        crate::camera::CameraTarget::default(), // Add camera target
-        Mesh2d(mesh),
-        MeshMaterial2d(material),
-        Transform::from_translation(Vec3::new(world_pos.x, world_pos.y, 2.0)),
-        grid_pos,
-        StateScoped(Screen::Gameplay),
     ));
 
+    commands.entity(player_entity).insert((
+        crate::camera::CameraTarget::default(),
+        Mesh2d(main_mesh),
+        MeshMaterial2d(main_material),
+    ));
+
+    // Add child entities for visual effects
+    let core_entity = commands
+        .spawn((
+            Name::new("Player Core"),
+            Mesh2d(core_mesh),
+            MeshMaterial2d(core_material),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
+        ))
+        .id();
+
+    let glow_entity = commands
+        .spawn((
+            Name::new("Player Glow"),
+            Mesh2d(glow_mesh),
+            MeshMaterial2d(glow_material),
+            Transform::from_translation(Vec3::new(0.0, 0.0, -0.1)),
+            PlayerGlow,
+        ))
+        .id();
+
+    let aura_entity = commands
+        .spawn((
+            Name::new("Player Aura"),
+            Mesh2d(aura_mesh),
+            MeshMaterial2d(aura_material),
+            Transform::from_translation(Vec3::new(0.0, 0.0, -0.2)),
+            PlayerAura::new(super::PLAYER_SIZE * 2.5),
+        ))
+        .id();
+
+    // Set up parent-child relationships - FIXED METHOD NAME
+    commands
+        .entity(player_entity)
+        .add_children(&[core_entity, glow_entity, aura_entity]);
+
     info!(
-        "Player spawned at grid position ({}, {}) in {}x{} map",
+        "Enhanced player spawned at grid position ({}, {}) in {}x{} map",
         center_x, center_y, grid_map.width, grid_map.height
     );
 }
@@ -185,55 +259,335 @@ pub fn collect_options(
     }
 }
 
-/// System to animate player (pulsing effect and rotation based on movement)
+/// System to animate player with enhanced visual effects (OPTIMIZED)
 pub fn animate_player(
     time: Res<Time>,
     mut player_query: Query<
-        (&PlayerController, &mut Transform),
+        (
+            &PlayerController,
+            &mut Transform,
+            &mut PlayerEffects,
+            &Children,
+        ),
         (With<Player>, With<PlayerVisual>),
     >,
+    mut glow_query: Query<
+        (&mut Transform, &mut MeshMaterial2d<ColorMaterial>),
+        (With<PlayerGlow>, Without<Player>, Without<PlayerAura>),
+    >,
+    mut aura_query: Query<
+        (
+            &mut Transform,
+            &mut PlayerAura,
+            &mut MeshMaterial2d<ColorMaterial>,
+        ),
+        (Without<Player>, Without<PlayerGlow>),
+    >,
+    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let time_factor = time.elapsed_secs() * 4.0; // Faster animation than options
+    let time_factor = time.elapsed_secs();
 
-    for (controller, mut transform) in &mut player_query {
-        // Base pulsing effect
-        let pulse = 1.0 + (time_factor.sin() * 0.1);
+    for (controller, mut transform, mut effects, children) in &mut player_query {
+        // Update boost timer
+        if effects.is_boosted {
+            effects.boost_timer.tick(time.delta());
+            if effects.boost_timer.finished() {
+                effects.is_boosted = false;
+                effects.glow_intensity = 0.8;
+                effects.pulse_speed = 3.0;
+                effects.energy_level = 1.0;
+                // Reset base color when boost ends
+                effects.base_color = Color::srgb(1.0, 0.8, 0.2);
+            }
+        }
 
-        // Scale up slightly when moving
-        let movement_scale = if controller.movement_input.length() > 0.1 {
-            1.1
+        // Base pulsing effect (more intense when moving)
+        let movement_intensity = if controller.movement_input.length() > 0.1 {
+            1.2
         } else {
             1.0
         };
+        let pulse = 1.0 + (time_factor * effects.pulse_speed).sin() * 0.1 * movement_intensity;
+        transform.scale = Vec3::splat(pulse);
 
-        transform.scale = Vec3::splat(pulse * movement_scale);
-
-        // Rotate based on movement direction
+        // Rotation based on movement
         if controller.movement_input.length() > 0.1 {
-            let angle = controller
+            let target_angle = controller
                 .movement_input
                 .y
                 .atan2(controller.movement_input.x);
-            transform.rotation = Quat::from_rotation_z(angle);
+            let current_rotation = transform.rotation.to_euler(EulerRot::ZYX).0;
+            let angle_diff = (target_angle - current_rotation + std::f32::consts::PI)
+                % (2.0 * std::f32::consts::PI)
+                - std::f32::consts::PI;
+            let new_rotation = current_rotation + angle_diff * time.delta_secs() * 8.0;
+            transform.rotation = Quat::from_rotation_z(new_rotation);
+        }
+
+        // Update glow effects (less frequent updates)
+        for child in children.iter() {
+            if let Ok((mut glow_transform, material_handle)) = glow_query.get_mut(child) {
+                // Glow pulsing (offset from main pulse)
+                let glow_pulse = 1.0 + (time_factor * effects.pulse_speed * 1.3).sin() * 0.2;
+                glow_transform.scale = Vec3::splat(glow_pulse);
+
+                // Only update material color occasionally to reduce performance impact
+                if (time_factor * 10.0) as i32 % 2 == 0 {
+                    if let Some(material) = materials.get_mut(&material_handle.0) {
+                        let current_color = effects.get_current_color(time_factor);
+                        let alpha =
+                            effects.glow_intensity * (0.3 + (time_factor * 2.5).sin() * 0.1);
+                        material.color = Color::srgba(
+                            current_color.to_srgba().red,
+                            current_color.to_srgba().green,
+                            current_color.to_srgba().blue,
+                            alpha,
+                        );
+                    }
+                }
+            }
+
+            if let Ok((mut aura_transform, mut aura, material_handle)) = aura_query.get_mut(child) {
+                // Aura rotation and pulsing
+                aura.aura_phase += time.delta_secs() * 1.5;
+                if aura.aura_phase > std::f32::consts::TAU {
+                    aura.aura_phase = 0.0;
+                }
+
+                // Rotating aura effect
+                aura_transform.rotation = Quat::from_rotation_z(aura.aura_phase);
+
+                // Breathing aura effect
+                let aura_scale = 1.0 + (time_factor * 1.0).sin() * 0.15;
+                aura_transform.scale = Vec3::splat(aura_scale);
+
+                // Only update material color occasionally
+                if (time_factor * 8.0) as i32 % 3 == 0 {
+                    if let Some(material) = materials.get_mut(&material_handle.0) {
+                        let current_color = effects.get_current_color(time_factor);
+                        let alpha =
+                            if effects.is_boosted { 0.3 } else { 0.1 } * effects.energy_level;
+                        material.color = Color::srgba(
+                            current_color.to_srgba().red,
+                            current_color.to_srgba().green,
+                            current_color.to_srgba().blue,
+                            alpha,
+                        );
+                    }
+                }
+            }
         }
     }
 }
 
-/// System to handle option collection events and provide feedback
-pub fn handle_collection_events(mut event_reader: EventReader<OptionCollectedEvent>) {
-    for event in event_reader.read() {
-        if event.is_correct {
-            info!(
-                "✅ Correct! Collected '{}' (ID: {})",
-                event.option_text, event.option_id
-            );
-            // TODO: Add positive visual/audio feedback
-        } else {
-            info!(
-                "❌ Wrong! Collected '{}' (ID: {})",
-                event.option_text, event.option_id
-            );
-            // TODO: Add negative visual/audio feedback
+/// System to create energy particles around the player (OPTIMIZED)
+pub fn update_player_energy_particles(
+    time: Res<Time>,
+    mut player_query: Query<(&Transform, &mut PlayerEnergyParticles, &PlayerEffects), With<Player>>,
+    mut particle_events: EventWriter<crate::effects::SpawnCollectionEvent>,
+) {
+    for (transform, mut particles, effects) in &mut player_query {
+        particles.particle_timer.tick(time.delta());
+
+        // Reduce particle frequency and only spawn when energy is high
+        if particles.particle_timer.just_finished()
+            && effects.energy_level > 0.7
+            && !effects.is_boosted
+        // Disable regular particles during boost to reduce spam
+        {
+            let base_pos = transform.translation;
+            let time_factor = time.elapsed_secs();
+
+            // Reduce particle count
+            let particle_count = if effects.energy_level > 0.9 { 1 } else { 0 };
+
+            for i in 0..particle_count {
+                // Create orbital particle positions
+                let angle = time_factor * 2.0
+                    + i as f32 * std::f32::consts::TAU / particles.particle_count as f32;
+                let radius = super::PLAYER_SIZE * 1.8;
+
+                let particle_pos = Vec3::new(
+                    base_pos.x + angle.cos() * radius,
+                    base_pos.y + angle.sin() * radius,
+                    base_pos.z + 0.2,
+                );
+
+                particle_events.write(crate::effects::SpawnCollectionEvent {
+                    position: particle_pos,
+                    color: effects.get_current_color(time_factor),
+                });
+            }
+        }
+    }
+}
+
+/// System to create movement trail (OPTIMIZED)
+pub fn update_player_trail(
+    time: Res<Time>,
+    mut player_query: Query<
+        (
+            &Transform,
+            &mut PlayerTrail,
+            &PlayerController,
+            &PlayerEffects,
+        ),
+        With<Player>,
+    >,
+    mut trail_events: EventWriter<crate::effects::SpawnCollectionEvent>,
+) {
+    for (transform, mut trail, controller, effects) in &mut player_query {
+        trail.trail_timer.tick(time.delta());
+
+        // Only create trail when moving and reduce frequency
+        if controller.movement_input.length() > 0.1
+            && trail.trail_timer.just_finished()
+            && effects.trail_enabled
+            && !effects.is_boosted
+        // Disable trail during boost to reduce particle spam
+        {
+            let current_pos = transform.translation;
+            let current_time = time.elapsed_secs();
+
+            // Add current position to trail
+            trail.trail_positions.push((current_pos, current_time));
+
+            // Remove old trail positions
+            trail
+                .trail_positions
+                .retain(|(_, age)| current_time - age < 0.5); // Shorter trail duration
+
+            // Limit trail length more aggressively
+            while trail.trail_positions.len() > 10 {
+                // Reduced from 20
+                trail.trail_positions.remove(0);
+            }
+
+            // Create fewer trail particles
+            for (i, (pos, age)) in trail.trail_positions.iter().enumerate().rev() {
+                if i % 5 == 0 {
+                    // Only every 5th position instead of every 3rd
+                    let trail_alpha = (1.0 - (current_time - age) * 2.0) * 0.3; // Faster fade
+                    if trail_alpha > 0.05 {
+                        let mut trail_color = effects.base_color; // Use base color instead of animated color
+                        trail_color.set_alpha(trail_alpha);
+
+                        trail_events.write(crate::effects::SpawnCollectionEvent {
+                            position: *pos,
+                            color: trail_color,
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// System to handle player visual events (OPTIMIZED)
+pub fn handle_player_visual_events(
+    mut visual_events: EventReader<PlayerVisualEvent>,
+    mut player_query: Query<&mut PlayerEffects, With<Player>>,
+) {
+    for event in visual_events.read() {
+        if let Ok(mut effects) = player_query.get_mut(event.player_entity) {
+            match &event.event_type {
+                PlayerVisualEventType::CorrectAnswer => {
+                    effects.boost(1.0, 1.0);
+                    effects.base_color = Color::srgb(0.2, 1.0, 0.2); // Green boost
+                }
+                PlayerVisualEventType::WrongAnswer => {
+                    effects.energy_level = (effects.energy_level - 0.2).max(0.2);
+                    effects.base_color = Color::srgb(1.0, 0.3, 0.3); // Red indication
+                    // Reset color after a short time to prevent permanent color change
+                    effects.boost_timer = Timer::from_seconds(0.5, TimerMode::Once);
+                }
+                PlayerVisualEventType::Streak(count) => {
+                    let intensity = (*count as f32 * 0.1).min(1.0);
+                    effects.boost(1.5, intensity); // Reduced duration
+                    // Only apply rainbow for very high streaks
+                    if *count > 10 {
+                        effects.base_color = Color::hsl((*count as f32 * 30.0) % 360.0, 0.8, 0.6);
+                    }
+                }
+                PlayerVisualEventType::Boost {
+                    duration,
+                    intensity,
+                } => {
+                    effects.boost(*duration, *intensity);
+                }
+            }
+        }
+    }
+}
+
+/// System to handle option collection events and provide enhanced feedback (OPTIMIZED)
+pub fn handle_collection_events(
+    mut collection_events: EventReader<OptionCollectedEvent>,
+    mut visual_events: EventWriter<PlayerVisualEvent>,
+    mut player_query: Query<&mut PlayerStats, With<Player>>,
+) {
+    for event in collection_events.read() {
+        if let Ok(mut stats) = player_query.get_mut(event.player_entity) {
+            if event.is_correct {
+                stats.correct_answers += 1;
+                stats.current_streak += 1;
+
+                // Update best streak
+                if stats.current_streak > stats.best_streak {
+                    stats.best_streak = stats.current_streak;
+                }
+
+                info!(
+                    "✅ Correct! Collected '{}' (ID: {}) - Streak: {}",
+                    event.option_text, event.option_id, stats.current_streak
+                );
+
+                // Send visual feedback
+                visual_events.write(PlayerVisualEvent {
+                    player_entity: event.player_entity,
+                    event_type: PlayerVisualEventType::CorrectAnswer,
+                });
+
+                // Only send streak events for significant milestones to reduce spam
+                if stats.current_streak % 3 == 0 && stats.current_streak > 3 {
+                    visual_events.write(PlayerVisualEvent {
+                        player_entity: event.player_entity,
+                        event_type: PlayerVisualEventType::Streak(stats.current_streak),
+                    });
+                }
+
+                // Extra boost only for higher milestones to reduce effects
+                if stats.current_streak % 10 == 0 && stats.current_streak > 0 {
+                    visual_events.write(PlayerVisualEvent {
+                        player_entity: event.player_entity,
+                        event_type: PlayerVisualEventType::Boost {
+                            duration: 2.0,  // Reduced duration
+                            intensity: 1.0, // Reduced intensity
+                        },
+                    });
+                    info!("🚀 Milestone streak reached: {}!", stats.current_streak);
+                }
+            } else {
+                stats.wrong_answers += 1;
+                stats.current_streak = 0;
+
+                info!(
+                    "❌ Wrong! Collected '{}' (ID: {})",
+                    event.option_text, event.option_id
+                );
+
+                // Send visual feedback
+                visual_events.write(PlayerVisualEvent {
+                    player_entity: event.player_entity,
+                    event_type: PlayerVisualEventType::WrongAnswer,
+                });
+
+                // Remove energy drain to reduce effect spam
+                // visual_events.write(PlayerVisualEvent {
+                //     player_entity: event.player_entity,
+                //     event_type: PlayerVisualEventType::EnergyDrain,
+                // });
+            }
         }
     }
 }

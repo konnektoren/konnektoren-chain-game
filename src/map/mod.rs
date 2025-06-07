@@ -4,7 +4,7 @@ mod components;
 mod systems;
 
 pub use components::*;
-pub use systems::setup_grid_map;
+pub use systems::setup_grid_map; // Make sure this is exported
 use systems::{handle_map_config_changes, update_grid_visualization};
 
 pub(super) fn plugin(app: &mut App) {

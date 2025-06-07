@@ -12,11 +12,17 @@ pub(super) fn plugin(app: &mut App) {
     app.register_type::<PlayerController>();
     app.register_type::<PlayerVisual>();
     app.register_type::<PlayerStats>();
+    app.register_type::<PlayerEffects>();
+    app.register_type::<PlayerGlow>();
+    app.register_type::<PlayerAura>();
+    app.register_type::<PlayerEnergyParticles>();
+    app.register_type::<PlayerTrail>();
 
-    // Register the event
+    // Register the events
     app.add_event::<OptionCollectedEvent>();
+    app.add_event::<PlayerVisualEvent>();
 
-    // Ensure player spawns after map is set up
+    // Ensure player spawns AFTER map setup
     app.add_systems(
         OnEnter(crate::screens::Screen::Gameplay),
         spawn_player.after(crate::map::setup_grid_map),
@@ -29,6 +35,9 @@ pub(super) fn plugin(app: &mut App) {
             move_player.in_set(crate::AppSystems::Update),
             collect_options.in_set(crate::AppSystems::Update),
             animate_player.in_set(crate::AppSystems::Update),
+            update_player_energy_particles.in_set(crate::AppSystems::Update),
+            update_player_trail.in_set(crate::AppSystems::Update),
+            handle_player_visual_events.in_set(crate::AppSystems::Update),
             handle_collection_events.in_set(crate::AppSystems::Update),
         )
             .run_if(in_state(crate::screens::Screen::Gameplay))
