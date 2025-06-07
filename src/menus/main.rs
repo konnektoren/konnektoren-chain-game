@@ -24,7 +24,7 @@ fn spawn_main_menu(mut commands: Commands) {
             widget::button("Play", enter_loading_or_gameplay_screen),
             widget::button("Settings", open_settings_menu),
             widget::button("Credits", open_credits_menu),
-            widget::button("🚀 Coming Soon: konnektoren.help", open_konnektoren_website),
+            widget::button("konnektoren.help", open_konnektoren_website),
         ],
     ));
 }
@@ -57,8 +57,6 @@ fn open_konnektoren_website(_: Trigger<Pointer<Click>>) {
 
     #[cfg(target_family = "wasm")]
     {
-        use wasm_bindgen::JsCast;
-
         if let Some(window) = web_sys::window() {
             let _ = window.open_with_url_and_target(url, "_blank");
         }
