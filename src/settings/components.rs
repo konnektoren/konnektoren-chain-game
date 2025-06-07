@@ -23,9 +23,9 @@ impl Default for MultiplayerSettings {
     fn default() -> Self {
         let mut settings = Self {
             enabled: false,
-            player_count: super::DEFAULT_PLAYER_COUNT,
-            auto_detect_players: true,
-            auto_assign_inputs: true,
+            player_count: 1,
+            auto_detect_players: false,
+            auto_assign_inputs: false, // Disabled by default to prevent conflicts
             players: vec![PlayerSettings::default()],
         };
         settings.setup_default_player_configs();
@@ -37,11 +37,7 @@ impl MultiplayerSettings {
     pub fn set_player_count(&mut self, count: usize) {
         let count = count.clamp(1, super::MAX_PLAYERS);
         self.player_count = count;
-
-        // Adjust players vector
         self.players.resize_with(count, PlayerSettings::default);
-
-        // Setup player configurations
         self.setup_default_player_configs();
     }
 
@@ -102,7 +98,7 @@ impl Default for PlayerSettings {
 pub struct InputSettings {
     pub primary_input: InputDevice,
     pub secondary_input: Option<InputDevice>,
-    pub allow_multiple_devices: bool, // For single player mode
+    pub allow_multiple_devices: bool,
 }
 
 impl Default for InputSettings {
@@ -146,7 +142,7 @@ impl InputSettings {
 #[derive(Reflect, Clone, Debug, PartialEq)]
 pub enum InputDevice {
     Keyboard(KeyboardScheme),
-    Gamepad(u32), // Gamepad index
+    Gamepad(u32),
     Mouse,
     Touch,
 }
@@ -250,7 +246,7 @@ impl Default for DisplaySettings {
 }
 
 /// Resource to track available input devices
-#[derive(Resource, Reflect, Default)]
+#[derive(Resource, Reflect, Default, Clone)]
 #[reflect(Resource)]
 pub struct AvailableInputDevices {
     pub gamepads: Vec<Entity>,
@@ -286,21 +282,17 @@ impl AvailableInputDevices {
 }
 
 /// Resource for managing input device assignments
-#[derive(Resource, Reflect, Default)]
+#[derive(Resource, Reflect, Default, Clone)]
 #[reflect(Resource)]
 pub struct InputDeviceAssignment {
-    pub assignments: Vec<(u32, InputDevice)>, // (player_id, device)
-    pub conflicts: Vec<String>,               // List of conflict messages
+    pub assignments: Vec<(u32, InputDevice)>,
+    pub conflicts: Vec<String>,
 }
 
 impl InputDeviceAssignment {
     pub fn assign_device(&mut self, player_id: u32, device: InputDevice) {
-        // Remove existing assignments for this player
         self.assignments.retain(|(id, _)| *id != player_id);
-
-        // Add new assignment
         self.assignments.push((player_id, device));
-
         self.validate_assignments();
     }
 
@@ -314,7 +306,6 @@ impl InputDeviceAssignment {
     fn validate_assignments(&mut self) {
         self.conflicts.clear();
 
-        // Check for duplicate device assignments
         for i in 0..self.assignments.len() {
             for j in (i + 1)..self.assignments.len() {
                 let (player1, device1) = &self.assignments[i];
@@ -342,3 +333,46 @@ fn devices_conflict(device1: &InputDevice, device2: &InputDevice) -> bool {
         _ => false,
     }
 }
+
+/// Resource to track device selection state
+#[derive(Resource, Reflect, Default)]
+#[reflect(Resource)]
+pub struct DeviceSelectionState {
+    pub selecting_player: Option<usize>,
+    pub selection_timeout: Timer,
+    pub pending_assignments: Vec<(usize, InputDevice)>,
+}
+
+// UI Components
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct PlayerConfigPanel {
+    pub player_id: usize,
+    pub is_active: bool,
+}
+
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct DeviceButton {
+    pub device: InputDevice,
+    pub player_id: usize,
+}
+
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct DeviceButtonsContainer {
+    pub player_id: usize,
+}
+
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct DeviceSectionContainer {
+    pub player_id: usize,
+    pub enabled: bool,
+}
+
+#[derive(Component)]
+pub struct PlayerGrid;
+
+#[derive(Component)]
+pub struct DeviceSelectionUI;

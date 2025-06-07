@@ -94,14 +94,42 @@ fn audio_section() -> impl Bundle {
     )
 }
 
+// Add this new widget function:
+fn player_management_widget() -> impl Bundle {
+    (
+        Name::new("Player Management Widget"),
+        Node {
+            justify_self: JustifySelf::Start,
+            align_items: AlignItems::Center,
+            column_gap: Px(10.0),
+            ..default()
+        },
+        children![
+            widget::button_small("-", remove_player),
+            (
+                Name::new("Player Count Display"),
+                Node {
+                    padding: UiRect::horizontal(Px(10.0)),
+                    justify_content: JustifyContent::Center,
+                    min_width: Px(40.0),
+                    ..default()
+                },
+                children![(widget::label(""), PlayerCountDisplay)],
+            ),
+            widget::button_small("+", add_player),
+        ],
+    )
+}
+
+// Update the multiplayer section:
 fn multiplayer_section() -> impl Bundle {
     (
         Name::new("Multiplayer Section"),
         Node {
             grid_column: GridPlacement::span(2),
             flex_direction: FlexDirection::Column,
-            row_gap: Px(15.0),
-            margin: UiRect::top(Px(20.0)),
+            row_gap: Val::Px(15.0),
+            margin: UiRect::top(Val::Px(20.0)),
             ..default()
         },
         children![
@@ -111,8 +139,8 @@ fn multiplayer_section() -> impl Bundle {
                 Node {
                     display: Display::Grid,
                     grid_template_columns: RepeatedGridTrack::px(2, 400.0),
-                    column_gap: Px(30.0),
-                    row_gap: Px(10.0),
+                    column_gap: Val::Px(30.0),
+                    row_gap: Val::Px(10.0),
                     ..default()
                 },
                 children![
@@ -125,41 +153,51 @@ fn multiplayer_section() -> impl Bundle {
                     ),
                     multiplayer_widget(),
                     (
-                        widget::label("Player Count"),
+                        widget::label("Add/Remove Players"),
                         Node {
                             justify_self: JustifySelf::End,
                             ..default()
                         }
                     ),
-                    player_count_widget(),
+                    player_management_widget(),
                     (
-                        widget::label("Auto-detect Players"),
+                        widget::label("Configure Players"),
                         Node {
                             justify_self: JustifySelf::End,
                             ..default()
                         }
                     ),
-                    auto_detect_widget(),
-                    (
-                        widget::label("Auto-assign Inputs"),
-                        Node {
-                            justify_self: JustifySelf::End,
-                            ..default()
-                        }
-                    ),
-                    auto_assign_widget(),
-                    (
-                        widget::label("Available Devices"),
-                        Node {
-                            justify_self: JustifySelf::End,
-                            ..default()
-                        }
-                    ),
-                    device_status_widget(),
+                    configure_players_widget(),
                 ],
             ),
         ],
     )
+}
+
+// Add these control functions:
+fn add_player(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
+    let new_count = (game_settings.multiplayer.player_count + 1).min(MAX_PLAYERS);
+    game_settings.multiplayer.set_player_count(new_count);
+    info!("Added player, new count: {}", new_count);
+}
+
+fn remove_player(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
+    let new_count = (game_settings.multiplayer.player_count.saturating_sub(1)).max(1);
+    game_settings.multiplayer.set_player_count(new_count);
+    info!("Removed player, new count: {}", new_count);
+}
+
+// Update the multiplayer toggle to be smarter:
+fn toggle_multiplayer(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
+    let new_state = !game_settings.multiplayer.enabled;
+    game_settings.multiplayer.enable_multiplayer(new_state);
+
+    // Auto-enable multiplayer if more than 1 player
+    if game_settings.multiplayer.player_count > 1 {
+        game_settings.multiplayer.enabled = true;
+    }
+
+    info!("Multiplayer toggled: {}", game_settings.multiplayer.enabled);
 }
 
 // Rest of the widget functions remain the same...
@@ -203,76 +241,6 @@ fn multiplayer_widget() -> impl Bundle {
     )
 }
 
-fn player_count_widget() -> impl Bundle {
-    (
-        Name::new("Player Count Widget"),
-        Node {
-            justify_self: JustifySelf::Start,
-            align_items: AlignItems::Center,
-            column_gap: Px(5.0),
-            ..default()
-        },
-        children![
-            widget::button_small("-", decrease_player_count),
-            (
-                Name::new("Player Count Display"),
-                Node {
-                    padding: UiRect::horizontal(Px(10.0)),
-                    justify_content: JustifyContent::Center,
-                    min_width: Px(40.0),
-                    ..default()
-                },
-                children![(widget::label(""), PlayerCountDisplay)],
-            ),
-            widget::button_small("+", increase_player_count),
-        ],
-    )
-}
-
-fn auto_detect_widget() -> impl Bundle {
-    (
-        Name::new("Auto Detect Widget"),
-        Node {
-            justify_self: JustifySelf::Start,
-            ..default()
-        },
-        children![(
-            widget::button("Toggle", toggle_auto_detect),
-            AutoDetectToggle,
-        ),],
-    )
-}
-
-fn auto_assign_widget() -> impl Bundle {
-    (
-        Name::new("Auto Assign Widget"),
-        Node {
-            justify_self: JustifySelf::Start,
-            ..default()
-        },
-        children![(
-            widget::button("Toggle", toggle_auto_assign),
-            AutoAssignToggle,
-        ),],
-    )
-}
-
-fn device_status_widget() -> impl Bundle {
-    (
-        Name::new("Device Status Widget"),
-        Node {
-            justify_self: JustifySelf::Start,
-            flex_direction: FlexDirection::Column,
-            row_gap: Px(5.0),
-            ..default()
-        },
-        children![(widget::label(""), DeviceStatusDisplay),],
-    )
-}
-
-// All the control functions and update systems remain the same...
-// (I'll include the essential ones)
-
 // Audio controls
 const MIN_VOLUME: f32 = 0.0;
 const MAX_VOLUME: f32 = 3.0;
@@ -285,39 +253,6 @@ fn lower_global_volume(_: Trigger<Pointer<Click>>, mut global_volume: ResMut<Glo
 fn raise_global_volume(_: Trigger<Pointer<Click>>, mut global_volume: ResMut<GlobalVolume>) {
     let linear = (global_volume.volume.to_linear() + 0.1).min(MAX_VOLUME);
     global_volume.volume = Volume::Linear(linear);
-}
-
-// Multiplayer controls
-fn toggle_multiplayer(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
-    let new_state = !game_settings.multiplayer.enabled;
-    game_settings.multiplayer.enable_multiplayer(new_state);
-    info!("Multiplayer toggled: {}", new_state);
-}
-
-fn increase_player_count(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
-    let new_count = (game_settings.multiplayer.player_count + 1).min(MAX_PLAYERS);
-    game_settings.multiplayer.set_player_count(new_count);
-}
-
-fn decrease_player_count(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
-    let new_count = (game_settings.multiplayer.player_count.saturating_sub(1)).max(1);
-    game_settings.multiplayer.set_player_count(new_count);
-}
-
-fn toggle_auto_detect(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
-    game_settings.multiplayer.auto_detect_players = !game_settings.multiplayer.auto_detect_players;
-    info!(
-        "Auto-detect players: {}",
-        game_settings.multiplayer.auto_detect_players
-    );
-}
-
-fn toggle_auto_assign(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
-    game_settings.multiplayer.auto_assign_inputs = !game_settings.multiplayer.auto_assign_inputs;
-    info!(
-        "Auto-assign inputs: {}",
-        game_settings.multiplayer.auto_assign_inputs
-    );
 }
 
 // UI Component markers
@@ -478,4 +413,19 @@ fn go_back(screen: Res<State<Screen>>, mut next_menu: ResMut<NextState<Menu>>) {
     } else {
         Menu::Pause
     });
+}
+
+fn configure_players_widget() -> impl Bundle {
+    (
+        Name::new("Configure Players Widget"),
+        Node {
+            justify_self: JustifySelf::Start,
+            ..default()
+        },
+        children![(widget::button("Configure", open_device_selection),),],
+    )
+}
+
+fn open_device_selection(_: Trigger<Pointer<Click>>, mut next_menu: ResMut<NextState<Menu>>) {
+    next_menu.set(Menu::DeviceSelection);
 }

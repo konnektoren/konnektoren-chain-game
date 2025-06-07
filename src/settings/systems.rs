@@ -1,10 +1,18 @@
 use super::components::*;
 use bevy::prelude::*;
+use std::collections::HashSet;
+
+/// Resource to track already warned about device assignments
+#[derive(Resource, Default)]
+pub struct DeviceWarningTracker {
+    warned_combinations: HashSet<(String, String)>, // (player_name, device_name)
+}
 
 /// System to detect available input devices
 pub fn detect_input_devices(
     mut available_devices: ResMut<AvailableInputDevices>,
     gamepads: Query<Entity, With<Gamepad>>,
+    mut warning_tracker: ResMut<DeviceWarningTracker>,
 ) {
     let old_gamepad_count = available_devices.gamepads.len();
     available_devices.gamepads.clear();
@@ -19,6 +27,9 @@ pub fn detect_input_devices(
             "Gamepad count changed: {} -> {}",
             old_gamepad_count, new_gamepad_count
         );
+
+        // Clear warning tracker when gamepad availability changes
+        warning_tracker.warned_combinations.clear();
     }
 
     // Always assume keyboard, mouse available on PC platforms
@@ -43,11 +54,19 @@ pub fn auto_assign_input_devices(
     available_devices: Res<AvailableInputDevices>,
     mut assignment: ResMut<InputDeviceAssignment>,
 ) {
+    // Don't auto-assign if auto-assign is disabled
     if !game_settings.multiplayer.auto_assign_inputs {
         return;
     }
 
-    if !available_devices.is_changed() && !game_settings.is_changed() {
+    // Only run auto-assignment on startup or when devices change, not when game settings change
+    // This prevents overriding manual selections
+    if !available_devices.is_changed() {
+        return;
+    }
+
+    // Don't auto-assign if there are already manual assignments
+    if !assignment.assignments.is_empty() {
         return;
     }
 
@@ -68,7 +87,7 @@ pub fn auto_assign_input_devices(
         }
     }
 
-    // Auto-assign input devices
+    // Auto-assign input devices only if no manual assignments exist
     assign_optimal_input_configuration(
         &mut game_settings.multiplayer,
         &available_devices,
@@ -159,11 +178,12 @@ fn assign_multiplayer_devices(
     );
 }
 
-/// System to validate player configurations
+/// System to validate player configurations with rate-limited warnings
 pub fn validate_player_configurations(
     game_settings: Res<GameSettings>,
     available_devices: Res<AvailableInputDevices>,
     assignment: Res<InputDeviceAssignment>,
+    mut warning_tracker: ResMut<DeviceWarningTracker>,
 ) {
     if !assignment.conflicts.is_empty() {
         warn!("Input device conflicts detected:");
@@ -172,14 +192,37 @@ pub fn validate_player_configurations(
         }
     }
 
-    // Validate that all assigned devices are available
+    // Validate that all assigned devices are available with rate-limited warnings
     for player in &game_settings.multiplayer.players {
         if !player.input.primary_input.is_available(&available_devices) {
-            warn!(
-                "Player {} assigned unavailable device: {}",
-                player.name,
-                player.input.primary_input.name()
-            );
+            let warning_key = (player.name.clone(), player.input.primary_input.name());
+
+            // Only warn if we haven't warned about this combination before
+            if !warning_tracker.warned_combinations.contains(&warning_key) {
+                warn!(
+                    "Player {} assigned unavailable device: {}",
+                    player.name,
+                    player.input.primary_input.name()
+                );
+                warning_tracker.warned_combinations.insert(warning_key);
+            }
         }
     }
+}
+
+/// System to mark manual assignments and prevent auto-override
+pub fn track_manual_assignments(
+    assignment: Res<InputDeviceAssignment>,
+    mut game_settings: ResMut<GameSettings>,
+) {
+    // If there are any assignments, disable auto-assign to prevent conflicts
+    if !assignment.assignments.is_empty() && game_settings.multiplayer.auto_assign_inputs {
+        info!("Disabling auto-assign due to manual device selection");
+        game_settings.multiplayer.auto_assign_inputs = false;
+    }
+}
+
+/// System to clear warning tracker when entering device selection
+pub fn clear_device_warnings(mut warning_tracker: ResMut<DeviceWarningTracker>) {
+    warning_tracker.warned_combinations.clear();
 }

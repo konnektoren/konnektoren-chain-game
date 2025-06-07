@@ -78,13 +78,6 @@ impl PlayerScore {
         self.collection_count += 1;
         self.total_score = (self.total_score + super::WRONG_ANSWER_PENALTY).max(0);
     }
-
-    pub fn accuracy(&self) -> f32 {
-        if self.collection_count == 0 {
-            return 0.0;
-        }
-        (self.correct_answers as f32 / self.collection_count as f32) * 100.0
-    }
 }
 
 /// Resource for tracking game time

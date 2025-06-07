@@ -61,41 +61,6 @@ impl Default for PlayerInputMapping {
     }
 }
 
-impl PlayerInputMapping {
-    pub fn from_settings(settings: &crate::settings::PlayerSettings) -> Self {
-        // Extract input information from the new InputDevice structure
-        let (keyboard_scheme, mouse_enabled, touch_enabled) = match &settings.input.primary_input {
-            crate::settings::InputDevice::Keyboard(scheme) => (Some(scheme.clone()), false, false),
-            crate::settings::InputDevice::Mouse => (None, true, false),
-            crate::settings::InputDevice::Touch => (None, false, true),
-            _ => (None, false, false),
-        };
-
-        // Check secondary input for additional capabilities
-        let (secondary_mouse, secondary_touch, secondary_keyboard) =
-            if let Some(ref secondary) = settings.input.secondary_input {
-                match secondary {
-                    crate::settings::InputDevice::Mouse => (true, false, None),
-                    crate::settings::InputDevice::Touch => (false, true, None),
-                    crate::settings::InputDevice::Keyboard(scheme) => {
-                        (false, false, Some(scheme.clone()))
-                    }
-                    _ => (false, false, None),
-                }
-            } else {
-                (false, false, None)
-            };
-
-        Self {
-            player_id: settings.player_id,
-            keyboard_scheme: keyboard_scheme.or(secondary_keyboard),
-            gamepad_entity: None, // Will be assigned by system
-            mouse_enabled: mouse_enabled || secondary_mouse,
-            touch_enabled: touch_enabled || secondary_touch,
-        }
-    }
-}
-
 /// Resource for our custom gamepad settings (renamed to avoid conflict)
 #[derive(Resource, Reflect, Clone)]
 #[reflect(Resource)]
@@ -184,41 +149,3 @@ pub struct VirtualJoystickBase;
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct VirtualJoystickKnob;
-
-/// Keyboard key mappings
-pub struct KeyboardMapping {
-    pub move_up: Vec<KeyCode>,
-    pub move_down: Vec<KeyCode>,
-    pub move_left: Vec<KeyCode>,
-    pub move_right: Vec<KeyCode>,
-    pub pause: Vec<KeyCode>,
-    pub interact: Vec<KeyCode>,
-}
-
-impl Default for KeyboardMapping {
-    fn default() -> Self {
-        Self {
-            move_up: vec![KeyCode::ArrowUp, KeyCode::KeyW],
-            move_down: vec![KeyCode::ArrowDown, KeyCode::KeyS],
-            move_left: vec![KeyCode::ArrowLeft, KeyCode::KeyA],
-            move_right: vec![KeyCode::ArrowRight, KeyCode::KeyD],
-            pause: vec![KeyCode::Escape, KeyCode::KeyP],
-            interact: vec![KeyCode::KeyE, KeyCode::KeyF],
-        }
-    }
-}
-
-/// Gamepad button mappings
-pub struct GamepadMapping {
-    pub pause: GamepadButton,
-    pub interact: GamepadButton,
-}
-
-impl Default for GamepadMapping {
-    fn default() -> Self {
-        Self {
-            pause: GamepadButton::Start,    // Start/Options button
-            interact: GamepadButton::South, // A/X button
-        }
-    }
-}
