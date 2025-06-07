@@ -1,3 +1,4 @@
+mod gameplay;
 use bevy::prelude::*;
 
 pub(super) fn plugin(app: &mut App) {
@@ -8,6 +9,9 @@ pub(super) fn plugin(app: &mut App) {
         Update,
         apply_global_volume.run_if(resource_changed::<GlobalVolume>),
     );
+
+    // Add the gameplay audio plugin
+    app.add_plugins(gameplay::plugin);
 }
 
 /// An organizational marker component that should be added to a spawned [`AudioPlayer`] if it's in the

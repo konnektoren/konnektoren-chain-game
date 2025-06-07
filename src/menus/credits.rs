@@ -45,6 +45,11 @@ fn assets() -> impl Bundle {
         ["Ducky sprite", "CC0 by Caz Creates Games"],
         ["Button SFX", "CC0 by Jaszunio15"],
         ["Music", "CC BY 3.0 by Kevin MacLeod"],
+        ["Gameplay SFX", "Licensed from Ovani Sound"],
+        [
+            "Audio License",
+            "https://ovanisound.com/policies/terms-of-service",
+        ],
         [
             "Bevy logo",
             "All rights reserved by the Bevy Foundation, permission granted for splash screen use when unmodified",
