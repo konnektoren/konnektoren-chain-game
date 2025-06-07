@@ -133,3 +133,12 @@ where
         })),
     )
 }
+/// A smaller header label. Smaller than [`header`] but bigger than [`label`].
+pub fn header_small(text: impl Into<String>) -> impl Bundle {
+    (
+        Name::new("Small Header"),
+        Text(text.into()),
+        TextFont::from_font_size(28.0),
+        TextColor(HEADER_TEXT),
+    )
+}

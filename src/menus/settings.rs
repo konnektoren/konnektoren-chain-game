@@ -1,10 +1,6 @@
-//! The settings menu.
-//!
-//! Additional settings and accessibility options should go here.
-
 use bevy::{audio::Volume, input::common_conditions::input_just_pressed, prelude::*, ui::Val::*};
 
-use crate::{menus::Menu, screens::Screen, theme::prelude::*};
+use crate::{menus::Menu, screens::Screen, settings::*, theme::prelude::*};
 
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Menu::Settings), spawn_settings_menu);
@@ -13,10 +9,25 @@ pub(super) fn plugin(app: &mut App) {
         go_back.run_if(in_state(Menu::Settings).and(input_just_pressed(KeyCode::Escape))),
     );
 
+    // Register UI components
     app.register_type::<GlobalVolumeLabel>();
+    app.register_type::<MultiplayerToggle>();
+    app.register_type::<PlayerCountDisplay>();
+    app.register_type::<AutoAssignToggle>();
+    app.register_type::<AutoDetectToggle>();
+    app.register_type::<DeviceStatusDisplay>();
+
     app.add_systems(
         Update,
-        update_global_volume_label.run_if(in_state(Menu::Settings)),
+        (
+            update_global_volume_label,
+            update_multiplayer_display,
+            update_player_count_display,
+            update_auto_assign_display,
+            update_auto_detect_display,
+            update_device_status_display,
+        )
+            .run_if(in_state(Menu::Settings)),
     );
 }
 
@@ -38,29 +49,127 @@ fn settings_grid() -> impl Bundle {
         Name::new("Settings Grid"),
         Node {
             display: Display::Grid,
-            row_gap: Px(10.0),
+            row_gap: Px(15.0),
             column_gap: Px(30.0),
             grid_template_columns: RepeatedGridTrack::px(2, 400.0),
             ..default()
         },
         children![
-            (
-                widget::label("Master Volume"),
-                Node {
-                    justify_self: JustifySelf::End,
-                    ..default()
-                }
-            ),
-            global_volume_widget(),
+            // Audio Settings
+            audio_section(),
+            // Multiplayer Settings
+            multiplayer_section(),
         ],
     )
 }
 
+fn audio_section() -> impl Bundle {
+    (
+        Name::new("Audio Section"),
+        Node {
+            grid_column: GridPlacement::span(2),
+            flex_direction: FlexDirection::Column,
+            row_gap: Px(10.0),
+            ..default()
+        },
+        children![(
+            Name::new("Audio Header"),
+            Node {
+                display: Display::Grid,
+                grid_template_columns: RepeatedGridTrack::px(2, 400.0),
+                column_gap: Px(30.0),
+                ..default()
+            },
+            children![
+                (
+                    widget::label("Master Volume"),
+                    Node {
+                        justify_self: JustifySelf::End,
+                        ..default()
+                    }
+                ),
+                global_volume_widget(),
+            ],
+        ),],
+    )
+}
+
+fn multiplayer_section() -> impl Bundle {
+    (
+        Name::new("Multiplayer Section"),
+        Node {
+            grid_column: GridPlacement::span(2),
+            flex_direction: FlexDirection::Column,
+            row_gap: Px(15.0),
+            margin: UiRect::top(Px(20.0)),
+            ..default()
+        },
+        children![
+            widget::header_small("Multiplayer"),
+            (
+                Name::new("Multiplayer Controls"),
+                Node {
+                    display: Display::Grid,
+                    grid_template_columns: RepeatedGridTrack::px(2, 400.0),
+                    column_gap: Px(30.0),
+                    row_gap: Px(10.0),
+                    ..default()
+                },
+                children![
+                    (
+                        widget::label("Enable Multiplayer"),
+                        Node {
+                            justify_self: JustifySelf::End,
+                            ..default()
+                        }
+                    ),
+                    multiplayer_widget(),
+                    (
+                        widget::label("Player Count"),
+                        Node {
+                            justify_self: JustifySelf::End,
+                            ..default()
+                        }
+                    ),
+                    player_count_widget(),
+                    (
+                        widget::label("Auto-detect Players"),
+                        Node {
+                            justify_self: JustifySelf::End,
+                            ..default()
+                        }
+                    ),
+                    auto_detect_widget(),
+                    (
+                        widget::label("Auto-assign Inputs"),
+                        Node {
+                            justify_self: JustifySelf::End,
+                            ..default()
+                        }
+                    ),
+                    auto_assign_widget(),
+                    (
+                        widget::label("Available Devices"),
+                        Node {
+                            justify_self: JustifySelf::End,
+                            ..default()
+                        }
+                    ),
+                    device_status_widget(),
+                ],
+            ),
+        ],
+    )
+}
+
+// Rest of the widget functions remain the same...
 fn global_volume_widget() -> impl Bundle {
     (
         Name::new("Global Volume Widget"),
         Node {
             justify_self: JustifySelf::Start,
+            align_items: AlignItems::Center,
+            column_gap: Px(5.0),
             ..default()
         },
         children![
@@ -70,6 +179,7 @@ fn global_volume_widget() -> impl Bundle {
                 Node {
                     padding: UiRect::horizontal(Px(10.0)),
                     justify_content: JustifyContent::Center,
+                    min_width: Px(60.0),
                     ..default()
                 },
                 children![(widget::label(""), GlobalVolumeLabel)],
@@ -79,6 +189,91 @@ fn global_volume_widget() -> impl Bundle {
     )
 }
 
+fn multiplayer_widget() -> impl Bundle {
+    (
+        Name::new("Multiplayer Widget"),
+        Node {
+            justify_self: JustifySelf::Start,
+            ..default()
+        },
+        children![(
+            widget::button("Toggle", toggle_multiplayer),
+            MultiplayerToggle,
+        ),],
+    )
+}
+
+fn player_count_widget() -> impl Bundle {
+    (
+        Name::new("Player Count Widget"),
+        Node {
+            justify_self: JustifySelf::Start,
+            align_items: AlignItems::Center,
+            column_gap: Px(5.0),
+            ..default()
+        },
+        children![
+            widget::button_small("-", decrease_player_count),
+            (
+                Name::new("Player Count Display"),
+                Node {
+                    padding: UiRect::horizontal(Px(10.0)),
+                    justify_content: JustifyContent::Center,
+                    min_width: Px(40.0),
+                    ..default()
+                },
+                children![(widget::label(""), PlayerCountDisplay)],
+            ),
+            widget::button_small("+", increase_player_count),
+        ],
+    )
+}
+
+fn auto_detect_widget() -> impl Bundle {
+    (
+        Name::new("Auto Detect Widget"),
+        Node {
+            justify_self: JustifySelf::Start,
+            ..default()
+        },
+        children![(
+            widget::button("Toggle", toggle_auto_detect),
+            AutoDetectToggle,
+        ),],
+    )
+}
+
+fn auto_assign_widget() -> impl Bundle {
+    (
+        Name::new("Auto Assign Widget"),
+        Node {
+            justify_self: JustifySelf::Start,
+            ..default()
+        },
+        children![(
+            widget::button("Toggle", toggle_auto_assign),
+            AutoAssignToggle,
+        ),],
+    )
+}
+
+fn device_status_widget() -> impl Bundle {
+    (
+        Name::new("Device Status Widget"),
+        Node {
+            justify_self: JustifySelf::Start,
+            flex_direction: FlexDirection::Column,
+            row_gap: Px(5.0),
+            ..default()
+        },
+        children![(widget::label(""), DeviceStatusDisplay),],
+    )
+}
+
+// All the control functions and update systems remain the same...
+// (I'll include the essential ones)
+
+// Audio controls
 const MIN_VOLUME: f32 = 0.0;
 const MAX_VOLUME: f32 = 3.0;
 
@@ -92,16 +287,177 @@ fn raise_global_volume(_: Trigger<Pointer<Click>>, mut global_volume: ResMut<Glo
     global_volume.volume = Volume::Linear(linear);
 }
 
+// Multiplayer controls
+fn toggle_multiplayer(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
+    let new_state = !game_settings.multiplayer.enabled;
+    game_settings.multiplayer.enable_multiplayer(new_state);
+    info!("Multiplayer toggled: {}", new_state);
+}
+
+fn increase_player_count(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
+    let new_count = (game_settings.multiplayer.player_count + 1).min(MAX_PLAYERS);
+    game_settings.multiplayer.set_player_count(new_count);
+}
+
+fn decrease_player_count(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
+    let new_count = (game_settings.multiplayer.player_count.saturating_sub(1)).max(1);
+    game_settings.multiplayer.set_player_count(new_count);
+}
+
+fn toggle_auto_detect(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
+    game_settings.multiplayer.auto_detect_players = !game_settings.multiplayer.auto_detect_players;
+    info!(
+        "Auto-detect players: {}",
+        game_settings.multiplayer.auto_detect_players
+    );
+}
+
+fn toggle_auto_assign(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
+    game_settings.multiplayer.auto_assign_inputs = !game_settings.multiplayer.auto_assign_inputs;
+    info!(
+        "Auto-assign inputs: {}",
+        game_settings.multiplayer.auto_assign_inputs
+    );
+}
+
+// UI Component markers
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 struct GlobalVolumeLabel;
 
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+struct MultiplayerToggle;
+
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+struct PlayerCountDisplay;
+
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+struct AutoAssignToggle;
+
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+struct AutoDetectToggle;
+
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+struct DeviceStatusDisplay;
+
+// Update systems
 fn update_global_volume_label(
     global_volume: Res<GlobalVolume>,
     mut label: Single<&mut Text, With<GlobalVolumeLabel>>,
 ) {
     let percent = 100.0 * global_volume.volume.to_linear();
     label.0 = format!("{percent:3.0}%");
+}
+
+fn update_multiplayer_display(
+    game_settings: Res<GameSettings>,
+    button_query: Query<&Children, With<MultiplayerToggle>>,
+    mut text_query: Query<&mut Text>,
+) {
+    if !game_settings.is_changed() {
+        return;
+    }
+
+    for children in &button_query {
+        for child in children.iter() {
+            if let Ok(mut text) = text_query.get_mut(child) {
+                text.0 = if game_settings.multiplayer.enabled {
+                    "ON".to_string()
+                } else {
+                    "OFF".to_string()
+                };
+            }
+        }
+    }
+}
+
+fn update_player_count_display(
+    game_settings: Res<GameSettings>,
+    mut label: Single<&mut Text, With<PlayerCountDisplay>>,
+) {
+    if game_settings.is_changed() {
+        label.0 = format!("{}", game_settings.multiplayer.player_count);
+    }
+}
+
+fn update_auto_assign_display(
+    game_settings: Res<GameSettings>,
+    button_query: Query<&Children, With<AutoAssignToggle>>,
+    mut text_query: Query<&mut Text>,
+) {
+    if !game_settings.is_changed() {
+        return;
+    }
+
+    for children in &button_query {
+        for child in children.iter() {
+            if let Ok(mut text) = text_query.get_mut(child) {
+                text.0 = if game_settings.multiplayer.auto_assign_inputs {
+                    "ON".to_string()
+                } else {
+                    "OFF".to_string()
+                };
+            }
+        }
+    }
+}
+
+fn update_auto_detect_display(
+    game_settings: Res<GameSettings>,
+    button_query: Query<&Children, With<AutoDetectToggle>>,
+    mut text_query: Query<&mut Text>,
+) {
+    if !game_settings.is_changed() {
+        return;
+    }
+
+    for children in &button_query {
+        for child in children.iter() {
+            if let Ok(mut text) = text_query.get_mut(child) {
+                text.0 = if game_settings.multiplayer.auto_detect_players {
+                    "ON".to_string()
+                } else {
+                    "OFF".to_string()
+                };
+            }
+        }
+    }
+}
+
+fn update_device_status_display(
+    available_devices: Res<AvailableInputDevices>,
+    assignment: Res<InputDeviceAssignment>,
+    mut label: Single<&mut Text, With<DeviceStatusDisplay>>,
+) {
+    if available_devices.is_changed() || assignment.is_changed() {
+        let gamepad_count = available_devices.gamepads.len();
+        let keyboard = if available_devices.has_keyboard {
+            "✓"
+        } else {
+            "✗"
+        };
+        let mouse = if available_devices.has_mouse {
+            "✓"
+        } else {
+            "✗"
+        };
+
+        let mut status_text = format!(
+            "Gamepads: {} | Keyboard: {} | Mouse: {}",
+            gamepad_count, keyboard, mouse
+        );
+
+        if !assignment.conflicts.is_empty() {
+            status_text.push_str("\n⚠️ Input conflicts detected");
+        }
+
+        label.0 = status_text;
+    }
 }
 
 fn go_back_on_click(

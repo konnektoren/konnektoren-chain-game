@@ -20,6 +20,7 @@ mod plugin;
 mod question;
 mod resources;
 mod screens;
+mod settings;
 mod theme;
 
 pub use plugin::AppPlugin;

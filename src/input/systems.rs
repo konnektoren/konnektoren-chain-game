@@ -1,5 +1,6 @@
 use super::components::*;
 use crate::screens::Screen;
+use crate::settings::GameSettings;
 use bevy::prelude::*;
 
 /// System to detect and track connected gamepads
@@ -28,31 +29,32 @@ pub fn detect_gamepads(
     }
 }
 
-/// System to handle keyboard input
+/// System to handle keyboard input for multiple players
 pub fn handle_keyboard_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut controller_query: Query<(&mut InputController, &PlayerInputMapping)>,
-    mut joystick_state: ResMut<VirtualJoystickState>, // Add this
+    mut joystick_state: ResMut<VirtualJoystickState>,
 ) {
-    let mapping = KeyboardMapping::default();
-
     for (mut controller, input_mapping) in &mut controller_query {
-        if !input_mapping.keyboard_enabled {
+        let Some(keyboard_scheme) = &input_mapping.keyboard_scheme else {
             continue;
-        }
+        };
+
+        // Get keys for this player's scheme
+        let (up, down, left, right) = keyboard_scheme.get_keys();
 
         // Handle continuous movement input
         let mut movement = Vec2::ZERO;
-        if mapping.move_up.iter().any(|key| keyboard.pressed(*key)) {
+        if keyboard.pressed(up) {
             movement.y += 1.0;
         }
-        if mapping.move_down.iter().any(|key| keyboard.pressed(*key)) {
+        if keyboard.pressed(down) {
             movement.y -= 1.0;
         }
-        if mapping.move_left.iter().any(|key| keyboard.pressed(*key)) {
+        if keyboard.pressed(left) {
             movement.x -= 1.0;
         }
-        if mapping.move_right.iter().any(|key| keyboard.pressed(*key)) {
+        if keyboard.pressed(right) {
             movement.x += 1.0;
         }
 
@@ -60,47 +62,39 @@ pub fn handle_keyboard_input(
         if movement != Vec2::ZERO {
             movement = movement.normalize();
             controller.movement_input = movement;
-            controller.input_source = InputSource::Keyboard;
+            controller.input_source = InputSource::Keyboard(keyboard_scheme.clone());
 
-            // Update virtual joystick to show keyboard direction
-            joystick_state.movement_vector = movement;
-            joystick_state.is_active = true;
-        } else if controller.input_source == InputSource::Keyboard {
-            // Reset if no keyboard input
-            joystick_state.movement_vector = Vec2::ZERO;
-            joystick_state.is_active = false;
+            // Update virtual joystick for player 0 only (for visual feedback)
+            if input_mapping.player_id == 0 {
+                joystick_state.movement_vector = movement;
+                joystick_state.is_active = true;
+            }
+        } else if matches!(controller.input_source, InputSource::Keyboard(_)) {
+            controller.movement_input = Vec2::ZERO;
+            if input_mapping.player_id == 0 {
+                joystick_state.movement_vector = Vec2::ZERO;
+                joystick_state.is_active = false;
+            }
         }
 
-        // Handle action input
-        controller.action_input.pause = mapping.pause.iter().any(|key| keyboard.just_pressed(*key));
-        controller.action_input.interact = mapping
-            .interact
-            .iter()
-            .any(|key| keyboard.just_pressed(*key));
+        // Handle action input (use common keys for all players for now)
+        controller.action_input.pause =
+            keyboard.just_pressed(KeyCode::Escape) || keyboard.just_pressed(KeyCode::KeyP);
+        controller.action_input.interact =
+            keyboard.just_pressed(KeyCode::KeyE) || keyboard.just_pressed(KeyCode::Space);
     }
 }
 
-/// System to handle gamepad input
+/// System to handle gamepad input for multiple players
 pub fn handle_gamepad_input(
     gamepads: Query<(Entity, &Gamepad)>,
-    gamepad_settings: Res<CustomGamepadSettings>,
     mut controller_query: Query<(&mut InputController, &PlayerInputMapping)>,
-    mut joystick_state: ResMut<VirtualJoystickState>, // Add this
+    mut joystick_state: ResMut<VirtualJoystickState>,
 ) {
-    let mapping = GamepadMapping::default();
-
     for (mut controller, input_mapping) in &mut controller_query {
         let Some(gamepad_entity) = input_mapping.gamepad_entity else {
             continue;
         };
-
-        // Check if this gamepad is still connected
-        if !gamepad_settings
-            .connected_gamepads
-            .contains(&gamepad_entity)
-        {
-            continue;
-        }
 
         // Find the gamepad
         let Some((_, gamepad)) = gamepads
@@ -128,7 +122,7 @@ pub fn handle_gamepad_input(
 
         // Analog stick input (with deadzone)
         let left_stick = gamepad.left_stick();
-        if left_stick.length() > gamepad_settings.deadzone {
+        if left_stick.length() > super::GAMEPAD_DEADZONE {
             movement += left_stick;
         }
 
@@ -137,22 +131,26 @@ pub fn handle_gamepad_input(
             movement = movement.normalize();
         }
 
-        if movement.length() > gamepad_settings.deadzone {
+        if movement.length() > super::GAMEPAD_DEADZONE {
             controller.movement_input = movement;
             controller.input_source = InputSource::Gamepad(gamepad_entity);
 
-            // Update virtual joystick to show gamepad direction
-            joystick_state.movement_vector = movement;
-            joystick_state.is_active = true;
+            // Update virtual joystick for player 0 only
+            if input_mapping.player_id == 0 {
+                joystick_state.movement_vector = movement;
+                joystick_state.is_active = true;
+            }
         } else if matches!(controller.input_source, InputSource::Gamepad(_)) {
-            // Reset if no gamepad input
-            joystick_state.movement_vector = Vec2::ZERO;
-            joystick_state.is_active = false;
+            controller.movement_input = Vec2::ZERO;
+            if input_mapping.player_id == 0 {
+                joystick_state.movement_vector = Vec2::ZERO;
+                joystick_state.is_active = false;
+            }
         }
 
         // Handle action input
-        controller.action_input.pause = gamepad.just_pressed(mapping.pause);
-        controller.action_input.interact = gamepad.just_pressed(mapping.interact);
+        controller.action_input.pause = gamepad.just_pressed(GamepadButton::Start);
+        controller.action_input.interact = gamepad.just_pressed(GamepadButton::South);
     }
 }
 
@@ -248,20 +246,82 @@ pub fn handle_touch_input(
     }
 }
 
-/// System to automatically assign gamepads to players
+// Update the assign_gamepads_to_players system:
 pub fn assign_gamepads_to_players(
     mut player_query: Query<&mut PlayerInputMapping, With<crate::player::Player>>,
-    gamepad_settings: Res<CustomGamepadSettings>,
+    game_settings: Res<GameSettings>,
+    available_devices: Res<crate::settings::AvailableInputDevices>,
+    assignment: Res<crate::settings::InputDeviceAssignment>,
 ) {
+    if !game_settings.is_changed() && !available_devices.is_changed() && !assignment.is_changed() {
+        return;
+    }
+
     for mut input_mapping in &mut player_query {
-        // If player doesn't have a gamepad assigned and there are gamepads available
-        if input_mapping.gamepad_entity.is_none() && !gamepad_settings.connected_gamepads.is_empty()
-        {
-            // Assign the first available gamepad
-            input_mapping.gamepad_entity = Some(gamepad_settings.connected_gamepads[0]);
+        let player_id = input_mapping.player_id as usize;
+
+        if let Some(player_settings) = game_settings.multiplayer.players.get(player_id) {
+            // Clear previous assignments
+            input_mapping.keyboard_scheme = None;
+            input_mapping.gamepad_entity = None;
+            input_mapping.mouse_enabled = false;
+            input_mapping.touch_enabled = false;
+
+            // Assign primary input device
+            match &player_settings.input.primary_input {
+                crate::settings::InputDevice::Keyboard(scheme) => {
+                    input_mapping.keyboard_scheme = Some(scheme.clone());
+                }
+                crate::settings::InputDevice::Gamepad(gamepad_id) => {
+                    if let Some(gamepad_entity) =
+                        available_devices.gamepads.get(*gamepad_id as usize)
+                    {
+                        input_mapping.gamepad_entity = Some(*gamepad_entity);
+                    }
+                }
+                crate::settings::InputDevice::Mouse => {
+                    input_mapping.mouse_enabled = true;
+                }
+                crate::settings::InputDevice::Touch => {
+                    input_mapping.touch_enabled = true;
+                }
+            }
+
+            // Assign secondary input device (for single player)
+            if let Some(ref secondary_device) = player_settings.input.secondary_input {
+                match secondary_device {
+                    crate::settings::InputDevice::Keyboard(scheme) => {
+                        if input_mapping.keyboard_scheme.is_none() {
+                            input_mapping.keyboard_scheme = Some(scheme.clone());
+                        }
+                    }
+                    crate::settings::InputDevice::Gamepad(gamepad_id) => {
+                        if input_mapping.gamepad_entity.is_none() {
+                            if let Some(gamepad_entity) =
+                                available_devices.gamepads.get(*gamepad_id as usize)
+                            {
+                                input_mapping.gamepad_entity = Some(*gamepad_entity);
+                            }
+                        }
+                    }
+                    crate::settings::InputDevice::Mouse => {
+                        input_mapping.mouse_enabled = true;
+                    }
+                    crate::settings::InputDevice::Touch => {
+                        input_mapping.touch_enabled = true;
+                    }
+                }
+            }
+
             info!(
-                "Assigned gamepad {:?} to player {}",
-                gamepad_settings.connected_gamepads[0], input_mapping.player_id
+                "Assigned input devices to player {}: primary={}, secondary={:?}",
+                player_id + 1,
+                player_settings.input.primary_input.name(),
+                player_settings
+                    .input
+                    .secondary_input
+                    .as_ref()
+                    .map(|d| d.name())
             );
         }
     }

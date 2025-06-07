@@ -1,0 +1,344 @@
+use bevy::prelude::*;
+
+/// Main game settings resource
+#[derive(Resource, Reflect, Clone, Debug, Default)]
+#[reflect(Resource)]
+pub struct GameSettings {
+    pub multiplayer: MultiplayerSettings,
+    pub audio: AudioSettings,
+    pub display: DisplaySettings,
+}
+
+/// Multiplayer configuration
+#[derive(Reflect, Clone, Debug)]
+pub struct MultiplayerSettings {
+    pub enabled: bool,
+    pub player_count: usize,
+    pub auto_detect_players: bool,
+    pub auto_assign_inputs: bool,
+    pub players: Vec<PlayerSettings>,
+}
+
+impl Default for MultiplayerSettings {
+    fn default() -> Self {
+        let mut settings = Self {
+            enabled: false,
+            player_count: super::DEFAULT_PLAYER_COUNT,
+            auto_detect_players: true,
+            auto_assign_inputs: true,
+            players: vec![PlayerSettings::default()],
+        };
+        settings.setup_default_player_configs();
+        settings
+    }
+}
+
+impl MultiplayerSettings {
+    pub fn set_player_count(&mut self, count: usize) {
+        let count = count.clamp(1, super::MAX_PLAYERS);
+        self.player_count = count;
+
+        // Adjust players vector
+        self.players.resize_with(count, PlayerSettings::default);
+
+        // Setup player configurations
+        self.setup_default_player_configs();
+    }
+
+    pub fn enable_multiplayer(&mut self, enabled: bool) {
+        self.enabled = enabled;
+        if enabled && self.player_count == 1 {
+            self.set_player_count(2);
+        } else if !enabled {
+            self.set_player_count(1);
+        }
+    }
+
+    fn setup_default_player_configs(&mut self) {
+        for (i, player) in self.players.iter_mut().enumerate() {
+            player.player_id = i as u32;
+            player.name = format!("Player {}", i + 1);
+            player.input = InputSettings::default_for_player(i);
+            player.color = Self::default_player_color(i);
+            player.enabled = true;
+        }
+    }
+
+    fn default_player_color(index: usize) -> Color {
+        let colors = [
+            Color::srgb(1.0, 0.8, 0.2), // Yellow
+            Color::srgb(0.2, 0.8, 1.0), // Blue
+            Color::srgb(1.0, 0.2, 0.4), // Red
+            Color::srgb(0.2, 1.0, 0.4), // Green
+        ];
+        colors[index % colors.len()]
+    }
+}
+
+/// Settings for individual players
+#[derive(Reflect, Clone, Debug)]
+pub struct PlayerSettings {
+    pub player_id: u32,
+    pub name: String,
+    pub color: Color,
+    pub input: InputSettings,
+    pub enabled: bool,
+}
+
+impl Default for PlayerSettings {
+    fn default() -> Self {
+        Self {
+            player_id: 0,
+            name: "Player 1".to_string(),
+            color: Color::srgb(1.0, 0.8, 0.2),
+            input: InputSettings::default(),
+            enabled: true,
+        }
+    }
+}
+
+/// Input configuration for a player
+#[derive(Reflect, Clone, Debug)]
+pub struct InputSettings {
+    pub primary_input: InputDevice,
+    pub secondary_input: Option<InputDevice>,
+    pub allow_multiple_devices: bool, // For single player mode
+}
+
+impl Default for InputSettings {
+    fn default() -> Self {
+        Self {
+            primary_input: InputDevice::Keyboard(KeyboardScheme::WASD),
+            secondary_input: None,
+            allow_multiple_devices: true,
+        }
+    }
+}
+
+impl InputSettings {
+    pub fn default_for_player(player_index: usize) -> Self {
+        match player_index {
+            0 => Self {
+                primary_input: InputDevice::Keyboard(KeyboardScheme::WASD),
+                secondary_input: Some(InputDevice::Mouse),
+                allow_multiple_devices: true,
+            },
+            1 => Self {
+                primary_input: InputDevice::Keyboard(KeyboardScheme::Arrows),
+                secondary_input: None,
+                allow_multiple_devices: false,
+            },
+            2 => Self {
+                primary_input: InputDevice::Gamepad(0),
+                secondary_input: None,
+                allow_multiple_devices: false,
+            },
+            3 => Self {
+                primary_input: InputDevice::Gamepad(1),
+                secondary_input: None,
+                allow_multiple_devices: false,
+            },
+            _ => Self::default(),
+        }
+    }
+}
+
+#[derive(Reflect, Clone, Debug, PartialEq)]
+pub enum InputDevice {
+    Keyboard(KeyboardScheme),
+    Gamepad(u32), // Gamepad index
+    Mouse,
+    Touch,
+}
+
+#[allow(clippy::upper_case_acronyms)]
+#[derive(Reflect, Clone, Debug, PartialEq)]
+pub enum KeyboardScheme {
+    WASD,
+    Arrows,
+    IJKL,
+    Custom {
+        up: KeyCode,
+        down: KeyCode,
+        left: KeyCode,
+        right: KeyCode,
+    },
+}
+
+impl KeyboardScheme {
+    pub fn get_keys(&self) -> (KeyCode, KeyCode, KeyCode, KeyCode) {
+        match self {
+            KeyboardScheme::WASD => (KeyCode::KeyW, KeyCode::KeyS, KeyCode::KeyA, KeyCode::KeyD),
+            KeyboardScheme::Arrows => (
+                KeyCode::ArrowUp,
+                KeyCode::ArrowDown,
+                KeyCode::ArrowLeft,
+                KeyCode::ArrowRight,
+            ),
+            KeyboardScheme::IJKL => (KeyCode::KeyI, KeyCode::KeyK, KeyCode::KeyJ, KeyCode::KeyL),
+            KeyboardScheme::Custom {
+                up,
+                down,
+                left,
+                right,
+            } => (*up, *down, *left, *right),
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            KeyboardScheme::WASD => "WASD",
+            KeyboardScheme::Arrows => "Arrow Keys",
+            KeyboardScheme::IJKL => "IJKL",
+            KeyboardScheme::Custom { .. } => "Custom",
+        }
+    }
+}
+
+impl InputDevice {
+    pub fn name(&self) -> String {
+        match self {
+            InputDevice::Keyboard(scheme) => format!("Keyboard ({})", scheme.name()),
+            InputDevice::Gamepad(id) => format!("Gamepad {}", id + 1),
+            InputDevice::Mouse => "Mouse".to_string(),
+            InputDevice::Touch => "Touch".to_string(),
+        }
+    }
+
+    pub fn is_available(&self, available_devices: &AvailableInputDevices) -> bool {
+        match self {
+            InputDevice::Keyboard(_) => available_devices.has_keyboard,
+            InputDevice::Gamepad(id) => (*id as usize) < available_devices.gamepads.len(),
+            InputDevice::Mouse => available_devices.has_mouse,
+            InputDevice::Touch => available_devices.has_touch,
+        }
+    }
+}
+
+/// Audio settings
+#[derive(Reflect, Clone, Debug)]
+pub struct AudioSettings {
+    pub master_volume: f32,
+    pub music_volume: f32,
+    pub sfx_volume: f32,
+}
+
+impl Default for AudioSettings {
+    fn default() -> Self {
+        Self {
+            master_volume: 1.0,
+            music_volume: 0.8,
+            sfx_volume: 1.0,
+        }
+    }
+}
+
+/// Display settings
+#[derive(Reflect, Clone, Debug)]
+pub struct DisplaySettings {
+    pub vsync: bool,
+    pub show_fps: bool,
+}
+
+impl Default for DisplaySettings {
+    fn default() -> Self {
+        Self {
+            vsync: true,
+            show_fps: false,
+        }
+    }
+}
+
+/// Resource to track available input devices
+#[derive(Resource, Reflect, Default)]
+#[reflect(Resource)]
+pub struct AvailableInputDevices {
+    pub gamepads: Vec<Entity>,
+    pub has_mouse: bool,
+    pub has_touch: bool,
+    pub has_keyboard: bool,
+}
+
+impl AvailableInputDevices {
+    pub fn get_available_devices(&self) -> Vec<InputDevice> {
+        let mut devices = Vec::new();
+
+        if self.has_keyboard {
+            devices.push(InputDevice::Keyboard(KeyboardScheme::WASD));
+            devices.push(InputDevice::Keyboard(KeyboardScheme::Arrows));
+            devices.push(InputDevice::Keyboard(KeyboardScheme::IJKL));
+        }
+
+        for (index, _) in self.gamepads.iter().enumerate() {
+            devices.push(InputDevice::Gamepad(index as u32));
+        }
+
+        if self.has_mouse {
+            devices.push(InputDevice::Mouse);
+        }
+
+        if self.has_touch {
+            devices.push(InputDevice::Touch);
+        }
+
+        devices
+    }
+}
+
+/// Resource for managing input device assignments
+#[derive(Resource, Reflect, Default)]
+#[reflect(Resource)]
+pub struct InputDeviceAssignment {
+    pub assignments: Vec<(u32, InputDevice)>, // (player_id, device)
+    pub conflicts: Vec<String>,               // List of conflict messages
+}
+
+impl InputDeviceAssignment {
+    pub fn assign_device(&mut self, player_id: u32, device: InputDevice) {
+        // Remove existing assignments for this player
+        self.assignments.retain(|(id, _)| *id != player_id);
+
+        // Add new assignment
+        self.assignments.push((player_id, device));
+
+        self.validate_assignments();
+    }
+
+    pub fn get_device_for_player(&self, player_id: u32) -> Option<&InputDevice> {
+        self.assignments
+            .iter()
+            .find(|(id, _)| *id == player_id)
+            .map(|(_, device)| device)
+    }
+
+    fn validate_assignments(&mut self) {
+        self.conflicts.clear();
+
+        // Check for duplicate device assignments
+        for i in 0..self.assignments.len() {
+            for j in (i + 1)..self.assignments.len() {
+                let (player1, device1) = &self.assignments[i];
+                let (player2, device2) = &self.assignments[j];
+
+                if devices_conflict(device1, device2) {
+                    self.conflicts.push(format!(
+                        "Player {} and Player {} both assigned to {}",
+                        player1 + 1,
+                        player2 + 1,
+                        device1.name()
+                    ));
+                }
+            }
+        }
+    }
+}
+
+fn devices_conflict(device1: &InputDevice, device2: &InputDevice) -> bool {
+    match (device1, device2) {
+        (InputDevice::Keyboard(scheme1), InputDevice::Keyboard(scheme2)) => scheme1 == scheme2,
+        (InputDevice::Gamepad(id1), InputDevice::Gamepad(id2)) => id1 == id2,
+        (InputDevice::Mouse, InputDevice::Mouse) => true,
+        (InputDevice::Touch, InputDevice::Touch) => true,
+        _ => false,
+    }
+}

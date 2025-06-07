@@ -4,6 +4,7 @@ use crate::{
     map::{GridMap, GridPosition},
     options::{OptionCollectible, OptionType},
     screens::Screen,
+    settings::GameSettings, // Add this import
 };
 use bevy::prelude::*;
 
@@ -11,6 +12,7 @@ use bevy::prelude::*;
 pub fn spawn_player(
     mut commands: Commands,
     grid_map: Option<Res<GridMap>>,
+    game_settings: Res<GameSettings>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
@@ -19,112 +21,153 @@ pub fn spawn_player(
         return;
     };
 
-    // Spawn player at center of grid
+    let player_count = game_settings.multiplayer.player_count;
+
+    for (player_index, player_settings) in game_settings.multiplayer.players.iter().enumerate() {
+        if !player_settings.enabled {
+            continue;
+        }
+
+        // Calculate spawn position based on player count
+        let spawn_pos = calculate_player_spawn_position(player_index, player_count, &grid_map);
+        let world_pos = grid_map.grid_to_world(spawn_pos.x, spawn_pos.y);
+
+        let player_effects = PlayerEffects {
+            base_color: player_settings.color,
+            ..Default::default()
+        };
+
+        // Create main player visual
+        let main_mesh = meshes.add(Circle::new(super::PLAYER_SIZE));
+        let main_material = materials.add(ColorMaterial::from(player_settings.color));
+
+        // Create visual effect entities
+        let core_mesh = meshes.add(Circle::new(super::PLAYER_SIZE * 0.6));
+        let core_color = Color::srgb(1.0, 1.0, 1.0);
+        let core_material = materials.add(ColorMaterial::from(core_color));
+
+        let glow_mesh = meshes.add(Circle::new(super::PLAYER_SIZE * 1.4));
+        let glow_color = Color::srgba(
+            player_settings.color.to_srgba().red,
+            player_settings.color.to_srgba().green,
+            player_settings.color.to_srgba().blue,
+            0.4,
+        );
+        let glow_material = materials.add(ColorMaterial::from(glow_color));
+
+        let aura_mesh = meshes.add(Circle::new(super::PLAYER_SIZE * 2.0));
+        let aura_color = Color::srgba(
+            player_settings.color.to_srgba().red,
+            player_settings.color.to_srgba().green,
+            player_settings.color.to_srgba().blue,
+            0.15,
+        );
+        let aura_material = materials.add(ColorMaterial::from(aura_color));
+
+        // Spawn the player entity with core components first
+        let player_entity = commands
+            .spawn((
+                Name::new(format!("Player {}", player_index + 1)),
+                Player,
+                PlayerController::default(),
+                PlayerStats::default(),
+                PlayerVisual,
+                Transform::from_translation(Vec3::new(world_pos.x, world_pos.y, 2.0)),
+                spawn_pos, // This moves spawn_pos
+                StateScoped(Screen::Gameplay),
+            ))
+            .id();
+
+        // Add additional components in separate calls to avoid tuple size limits
+        commands.entity(player_entity).insert((
+            player_effects,
+            PlayerEnergyParticles::default(),
+            PlayerTrail::default(),
+            InputController {
+                player_id: player_index as u32,
+                ..Default::default()
+            },
+            PlayerInputMapping {
+                player_id: player_index as u32,
+                ..Default::default()
+            },
+        ));
+
+        commands.entity(player_entity).insert((
+            crate::camera::CameraTarget::default(),
+            Mesh2d(main_mesh),
+            MeshMaterial2d(main_material),
+        ));
+
+        // Add child entities for visual effects
+        let core_entity = commands
+            .spawn((
+                Name::new("Player Core"),
+                Mesh2d(core_mesh),
+                MeshMaterial2d(core_material),
+                Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
+            ))
+            .id();
+
+        let glow_entity = commands
+            .spawn((
+                Name::new("Player Glow"),
+                Mesh2d(glow_mesh),
+                MeshMaterial2d(glow_material),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -0.1)),
+                PlayerGlow,
+            ))
+            .id();
+
+        let aura_entity = commands
+            .spawn((
+                Name::new("Player Aura"),
+                Mesh2d(aura_mesh),
+                MeshMaterial2d(aura_material),
+                Transform::from_translation(Vec3::new(0.0, 0.0, -0.2)),
+                PlayerAura::new(super::PLAYER_SIZE * 2.5),
+            ))
+            .id();
+
+        // Set up parent-child relationships
+        commands
+            .entity(player_entity)
+            .add_children(&[core_entity, glow_entity, aura_entity]);
+
+        // Fix: Access spawn_pos values before it was moved, or recreate the position info
+        let spawn_x = (world_pos.x / grid_map.cell_size + grid_map.width as f32 / 2.0) as usize;
+        let spawn_y = (world_pos.y / grid_map.cell_size + grid_map.height as f32 / 2.0) as usize;
+
+        info!(
+            "Spawned {} at position ({}, {}) with color {:?}",
+            player_settings.name, spawn_x, spawn_y, player_settings.color
+        );
+    }
+}
+
+fn calculate_player_spawn_position(
+    player_index: usize,
+    total_players: usize,
+    grid_map: &GridMap,
+) -> GridPosition {
     let center_x = grid_map.width / 2;
     let center_y = grid_map.height / 2;
-    let grid_pos = GridPosition::new(center_x, center_y);
-    let world_pos = grid_map.grid_to_world(center_x, center_y);
 
-    let player_effects = PlayerEffects::default();
-    let player_color = player_effects.base_color;
+    if total_players == 1 {
+        GridPosition::new(center_x, center_y)
+    } else {
+        // Spread players around the center
+        let angle = (player_index as f32 / total_players as f32) * std::f32::consts::TAU;
+        let radius = (grid_map.width.min(grid_map.height) / 6) as f32;
 
-    // Create main player visual (layered design)
-    let main_mesh = meshes.add(Circle::new(super::PLAYER_SIZE));
-    let main_material = materials.add(ColorMaterial::from(player_color));
+        let offset_x = (angle.cos() * radius) as i32;
+        let offset_y = (angle.sin() * radius) as i32;
 
-    // Inner core (smaller, brighter)
-    let core_mesh = meshes.add(Circle::new(super::PLAYER_SIZE * 0.6));
-    let core_color = Color::srgb(1.0, 1.0, 1.0); // White core
-    let core_material = materials.add(ColorMaterial::from(core_color));
+        let spawn_x = (center_x as i32 + offset_x).clamp(1, grid_map.width as i32 - 2) as usize;
+        let spawn_y = (center_y as i32 + offset_y).clamp(1, grid_map.height as i32 - 2) as usize;
 
-    // Glow layer (larger, transparent)
-    let glow_mesh = meshes.add(Circle::new(super::PLAYER_SIZE * 1.4));
-    let glow_color = Color::srgba(
-        player_color.to_srgba().red,
-        player_color.to_srgba().green,
-        player_color.to_srgba().blue,
-        0.4,
-    );
-    let glow_material = materials.add(ColorMaterial::from(glow_color));
-
-    // Outer aura (even larger, very transparent)
-    let aura_mesh = meshes.add(Circle::new(super::PLAYER_SIZE * 2.0));
-    let aura_color = Color::srgba(
-        player_color.to_srgba().red,
-        player_color.to_srgba().green,
-        player_color.to_srgba().blue,
-        0.15,
-    );
-    let aura_material = materials.add(ColorMaterial::from(aura_color));
-
-    // Spawn the player entity with core components first
-    let player_entity = commands
-        .spawn((
-            Name::new("Player"),
-            Player,
-            PlayerController::default(),
-            PlayerStats::default(),
-            PlayerVisual,
-            Transform::from_translation(Vec3::new(world_pos.x, world_pos.y, 2.0)),
-            grid_pos,
-            StateScoped(Screen::Gameplay),
-        ))
-        .id();
-
-    // Add additional components in separate calls to avoid tuple size limits
-    commands.entity(player_entity).insert((
-        player_effects,
-        PlayerEnergyParticles::default(),
-        PlayerTrail::default(),
-        InputController::default(),
-        PlayerInputMapping::default(),
-    ));
-
-    commands.entity(player_entity).insert((
-        crate::camera::CameraTarget::default(),
-        Mesh2d(main_mesh),
-        MeshMaterial2d(main_material),
-    ));
-
-    // Add child entities for visual effects
-    let core_entity = commands
-        .spawn((
-            Name::new("Player Core"),
-            Mesh2d(core_mesh),
-            MeshMaterial2d(core_material),
-            Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
-        ))
-        .id();
-
-    let glow_entity = commands
-        .spawn((
-            Name::new("Player Glow"),
-            Mesh2d(glow_mesh),
-            MeshMaterial2d(glow_material),
-            Transform::from_translation(Vec3::new(0.0, 0.0, -0.1)),
-            PlayerGlow,
-        ))
-        .id();
-
-    let aura_entity = commands
-        .spawn((
-            Name::new("Player Aura"),
-            Mesh2d(aura_mesh),
-            MeshMaterial2d(aura_material),
-            Transform::from_translation(Vec3::new(0.0, 0.0, -0.2)),
-            PlayerAura::new(super::PLAYER_SIZE * 2.5),
-        ))
-        .id();
-
-    // Set up parent-child relationships - FIXED METHOD NAME
-    commands
-        .entity(player_entity)
-        .add_children(&[core_entity, glow_entity, aura_entity]);
-
-    info!(
-        "Enhanced player spawned at grid position ({}, {}) in {}x{} map",
-        center_x, center_y, grid_map.width, grid_map.height
-    );
+        GridPosition::new(spawn_x, spawn_y)
+    }
 }
 
 /// System to move the player smoothly with wraparound at borders

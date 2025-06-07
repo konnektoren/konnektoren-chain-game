@@ -28,6 +28,8 @@ impl Plugin for AppPlugin {
         // Initialize resources
         app.init_resource::<resources::MultipleChoiceChallenge>();
 
+        app.add_plugins((settings::plugin,));
+
         // Add other plugins.
         app.add_plugins((
             asset_tracking::plugin,

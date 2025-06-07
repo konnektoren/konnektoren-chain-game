@@ -16,7 +16,7 @@ impl Default for InputController {
             movement_input: Vec2::ZERO,
             action_input: ActionInput::default(),
             player_id: 0,
-            input_source: InputSource::Mouse, // Default to mouse for web/mobile
+            input_source: InputSource::Keyboard(crate::settings::KeyboardScheme::Arrows),
         }
     }
 }
@@ -31,7 +31,7 @@ pub struct ActionInput {
 /// Input source tracking
 #[derive(Reflect, Clone, Debug, PartialEq)]
 pub enum InputSource {
-    Keyboard,
+    Keyboard(crate::settings::KeyboardScheme),
     Gamepad(Entity),
     Mouse,
     Touch,
@@ -43,7 +43,7 @@ pub enum InputSource {
 #[reflect(Component)]
 pub struct PlayerInputMapping {
     pub player_id: u32,
-    pub keyboard_enabled: bool,
+    pub keyboard_scheme: Option<crate::settings::KeyboardScheme>,
     pub gamepad_entity: Option<Entity>,
     pub mouse_enabled: bool,
     pub touch_enabled: bool,
@@ -53,10 +53,45 @@ impl Default for PlayerInputMapping {
     fn default() -> Self {
         Self {
             player_id: 0,
-            keyboard_enabled: true,
+            keyboard_scheme: Some(crate::settings::KeyboardScheme::WASD),
             gamepad_entity: None,
             mouse_enabled: true,
             touch_enabled: true,
+        }
+    }
+}
+
+impl PlayerInputMapping {
+    pub fn from_settings(settings: &crate::settings::PlayerSettings) -> Self {
+        // Extract input information from the new InputDevice structure
+        let (keyboard_scheme, mouse_enabled, touch_enabled) = match &settings.input.primary_input {
+            crate::settings::InputDevice::Keyboard(scheme) => (Some(scheme.clone()), false, false),
+            crate::settings::InputDevice::Mouse => (None, true, false),
+            crate::settings::InputDevice::Touch => (None, false, true),
+            _ => (None, false, false),
+        };
+
+        // Check secondary input for additional capabilities
+        let (secondary_mouse, secondary_touch, secondary_keyboard) =
+            if let Some(ref secondary) = settings.input.secondary_input {
+                match secondary {
+                    crate::settings::InputDevice::Mouse => (true, false, None),
+                    crate::settings::InputDevice::Touch => (false, true, None),
+                    crate::settings::InputDevice::Keyboard(scheme) => {
+                        (false, false, Some(scheme.clone()))
+                    }
+                    _ => (false, false, None),
+                }
+            } else {
+                (false, false, None)
+            };
+
+        Self {
+            player_id: settings.player_id,
+            keyboard_scheme: keyboard_scheme.or(secondary_keyboard),
+            gamepad_entity: None, // Will be assigned by system
+            mouse_enabled: mouse_enabled || secondary_mouse,
+            touch_enabled: touch_enabled || secondary_touch,
         }
     }
 }

@@ -1,5 +1,6 @@
 use super::components::*;
 use crate::screens::Screen;
+use crate::settings::GameSettings;
 use bevy::prelude::*;
 
 /// System to set up the gameplay UI
@@ -62,6 +63,7 @@ pub fn setup_gameplay_ui(mut commands: Commands) {
 pub fn reset_game_state(
     mut gameplay_score: ResMut<GameplayScore>,
     mut game_timer: ResMut<GameTimer>,
+    game_settings: Res<GameSettings>,
     time: Res<Time>,
 ) {
     // Reset gameplay score
@@ -69,10 +71,23 @@ pub fn reset_game_state(
     gameplay_score.game_active = true;
     gameplay_score.game_start_time = time.elapsed_secs();
 
+    // Initialize scores for all active players
+    for player_settings in &game_settings.multiplayer.players {
+        if player_settings.enabled {
+            gameplay_score.add_player(
+                Entity::PLACEHOLDER, // Will be updated when actual entities are created
+                player_settings.name.clone(),
+            );
+        }
+    }
+
     // Reset game timer
     *game_timer = GameTimer::default();
 
-    info!("Game state reset - new game started!");
+    info!(
+        "Game state reset - new game started with {} players!",
+        game_settings.multiplayer.player_count
+    );
 }
 
 /// System to update the game timer
@@ -125,35 +140,43 @@ pub fn handle_score_events(
     }
 }
 
-/// System to update score display
+/// System to update score display for multiplayer
 pub fn update_score_display(
     gameplay_score: Res<GameplayScore>,
+    game_settings: Res<GameSettings>,
     mut score_query: Query<&mut Text, With<ScoreDisplay>>,
     mut stats_query: Query<&mut Text, (Without<ScoreDisplay>, Without<TimerDisplay>)>,
 ) {
-    // Get the first (and currently only) player's score
-    let player_score = gameplay_score.players.values().next();
+    // Calculate total score and best player stats
+    let mut total_score = 0;
+    let mut best_streak = 0;
+    let mut total_correct = 0;
+    let mut total_attempts = 0;
+
+    for player_score in gameplay_score.players.values() {
+        total_score += player_score.total_score;
+        best_streak = best_streak.max(player_score.best_streak);
+        total_correct += player_score.correct_answers;
+        total_attempts += player_score.collection_count;
+    }
+
+    let accuracy = if total_attempts > 0 {
+        (total_correct as f32 / total_attempts as f32) * 100.0
+    } else {
+        0.0
+    };
 
     for mut text in &mut score_query {
-        if let Some(score) = player_score {
-            text.0 = format!("Score: {}", score.total_score);
+        if game_settings.multiplayer.enabled {
+            text.0 = format!("Team Score: {}", total_score);
         } else {
-            text.0 = "Score: 0".to_string();
+            text.0 = format!("Score: {}", total_score);
         }
     }
 
     // Update additional stats
     for mut text in stats_query.iter_mut().take(1) {
-        // Only update the first stats display
-        if let Some(score) = player_score {
-            text.0 = format!(
-                "Streak: {} | Accuracy: {:.0}%",
-                score.current_streak,
-                score.accuracy()
-            );
-        } else {
-            text.0 = "Streak: 0 | Accuracy: 0%".to_string();
-        }
+        text.0 = format!("Best Streak: {} | Accuracy: {:.0}%", best_streak, accuracy);
     }
 }
 
