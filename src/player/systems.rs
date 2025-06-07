@@ -15,7 +15,9 @@ pub fn spawn_player(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let Some(grid_map) = grid_map else {
-        warn!("GridMap not available when trying to spawn player");
+        error!(
+            "GridMap not available when trying to spawn player! Map may not be initialized yet."
+        );
         return;
     };
 
@@ -35,11 +37,12 @@ pub fn spawn_player(
         PlayerController::default(),
         PlayerStats::default(),
         PlayerVisual,
-        InputController::default(),    // Add input controller
-        PlayerInputMapping::default(), // Add input mapping
+        InputController::default(),
+        PlayerInputMapping::default(),
+        crate::camera::CameraTarget::default(), // Add camera target
         Mesh2d(mesh),
         MeshMaterial2d(material),
-        Transform::from_translation(Vec3::new(world_pos.x, world_pos.y, 2.0)), // Higher Z than options
+        Transform::from_translation(Vec3::new(world_pos.x, world_pos.y, 2.0)),
         grid_pos,
         StateScoped(Screen::Gameplay),
     ));

@@ -47,7 +47,7 @@ impl MapConfig {
 }
 
 /// Resource representing the game grid map
-#[derive(Resource, Component, Reflect, Clone)]
+#[derive(Resource, Component, Reflect, Clone, Debug)]
 #[reflect(Resource)]
 pub struct GridMap {
     pub width: usize,

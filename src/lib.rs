@@ -5,6 +5,7 @@
 
 mod asset_tracking;
 mod audio;
+mod camera;
 mod chain;
 #[cfg(feature = "dev")]
 mod dev_tools;

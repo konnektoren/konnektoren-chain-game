@@ -32,6 +32,7 @@ impl Plugin for AppPlugin {
         app.add_plugins((
             asset_tracking::plugin,
             audio::plugin,
+            camera::plugin,
             #[cfg(feature = "dev")]
             dev_tools::plugin,
             map::plugin,
