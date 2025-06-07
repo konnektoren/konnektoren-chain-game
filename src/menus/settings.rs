@@ -94,14 +94,15 @@ fn audio_section() -> impl Bundle {
     )
 }
 
+// Add this to the multiplayer section
 fn multiplayer_section() -> impl Bundle {
     (
         Name::new("Multiplayer Section"),
         Node {
             grid_column: GridPlacement::span(2),
             flex_direction: FlexDirection::Column,
-            row_gap: Px(15.0),
-            margin: UiRect::top(Px(20.0)),
+            row_gap: Val::Px(15.0),
+            margin: UiRect::top(Val::Px(20.0)),
             ..default()
         },
         children![
@@ -111,8 +112,8 @@ fn multiplayer_section() -> impl Bundle {
                 Node {
                     display: Display::Grid,
                     grid_template_columns: RepeatedGridTrack::px(2, 400.0),
-                    column_gap: Px(30.0),
-                    row_gap: Px(10.0),
+                    column_gap: Val::Px(30.0),
+                    row_gap: Val::Px(10.0),
                     ..default()
                 },
                 children![
@@ -133,33 +134,32 @@ fn multiplayer_section() -> impl Bundle {
                     ),
                     player_count_widget(),
                     (
-                        widget::label("Auto-detect Players"),
+                        widget::label("Configure Players"),
                         Node {
                             justify_self: JustifySelf::End,
                             ..default()
                         }
                     ),
-                    auto_detect_widget(),
-                    (
-                        widget::label("Auto-assign Inputs"),
-                        Node {
-                            justify_self: JustifySelf::End,
-                            ..default()
-                        }
-                    ),
-                    auto_assign_widget(),
-                    (
-                        widget::label("Available Devices"),
-                        Node {
-                            justify_self: JustifySelf::End,
-                            ..default()
-                        }
-                    ),
-                    device_status_widget(),
+                    configure_players_widget(), // New widget
                 ],
             ),
         ],
     )
+}
+
+fn configure_players_widget() -> impl Bundle {
+    (
+        Name::new("Configure Players Widget"),
+        Node {
+            justify_self: JustifySelf::Start,
+            ..default()
+        },
+        children![(widget::button("Configure", open_device_selection),),],
+    )
+}
+
+fn open_device_selection(_: Trigger<Pointer<Click>>, mut next_menu: ResMut<NextState<Menu>>) {
+    next_menu.set(Menu::DeviceSelection); // New menu state
 }
 
 // Rest of the widget functions remain the same...

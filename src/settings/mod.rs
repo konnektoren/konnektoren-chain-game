@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 mod components;
+pub mod device_selection_ui;
 mod systems;
 mod ui;
 

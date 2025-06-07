@@ -1,9 +1,8 @@
-//! The game's menus and transitions between them.
-
 mod credits;
+mod device_selection;
 mod main;
 mod pause;
-mod settings;
+mod settings; // Add this
 
 use bevy::prelude::*;
 
@@ -15,6 +14,7 @@ pub(super) fn plugin(app: &mut App) {
         main::plugin,
         settings::plugin,
         pause::plugin,
+        device_selection::plugin, // Add this
     ));
 }
 
@@ -27,4 +27,5 @@ pub enum Menu {
     Credits,
     Settings,
     Pause,
+    DeviceSelection,
 }

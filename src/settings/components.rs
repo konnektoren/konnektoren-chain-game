@@ -342,3 +342,64 @@ fn devices_conflict(device1: &InputDevice, device2: &InputDevice) -> bool {
         _ => false,
     }
 }
+
+/// Component for device selection UI
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct DeviceSelectionArea {
+    pub device: InputDevice,
+    pub player_id: usize,
+    pub is_selected: bool,
+    pub is_available: bool,
+}
+
+/// Component for player configuration panel
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct PlayerConfigPanel {
+    pub player_id: usize,
+    pub is_active: bool,
+}
+
+/// Component for device selection button
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct DeviceButton {
+    pub device: InputDevice,
+    pub player_id: usize,
+}
+
+/// Component for player status display
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct PlayerStatusDisplay {
+    pub player_id: usize,
+}
+
+/// Resource to track which player is currently selecting a device
+#[derive(Resource, Reflect, Default)]
+#[reflect(Resource)]
+pub struct DeviceSelectionState {
+    pub selecting_player: Option<usize>,
+    pub selection_timeout: Timer,
+    pub pending_assignments: Vec<(usize, InputDevice)>,
+}
+
+impl DeviceSelectionState {
+    pub fn start_selection(&mut self, player_id: usize) {
+        self.selecting_player = Some(player_id);
+        self.selection_timeout = Timer::from_seconds(10.0, TimerMode::Once); // 10 second timeout
+    }
+
+    pub fn cancel_selection(&mut self) {
+        self.selecting_player = None;
+        self.selection_timeout.reset();
+    }
+
+    pub fn confirm_selection(&mut self, device: InputDevice) {
+        if let Some(player_id) = self.selecting_player {
+            self.pending_assignments.push((player_id, device));
+            self.cancel_selection();
+        }
+    }
+}
