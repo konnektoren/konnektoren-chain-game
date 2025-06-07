@@ -2,6 +2,24 @@ use super::components::*;
 use crate::{map::GridMap, screens::Screen};
 use bevy::prelude::*;
 
+/// System to set up the title/UI camera
+pub fn setup_title_camera(mut commands: Commands, existing_cameras: Query<Entity, With<Camera2d>>) {
+    // Remove any existing cameras
+    for camera_entity in &existing_cameras {
+        commands.entity(camera_entity).despawn();
+    }
+
+    // Spawn a basic UI camera for title screen
+    commands.spawn((
+        Name::new("Title Camera"),
+        Camera2d,
+        Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+        StateScoped(Screen::Title),
+    ));
+
+    info!("Title camera spawned");
+}
+
 /// System to set up the gameplay camera
 pub fn setup_gameplay_camera(
     mut commands: Commands,
@@ -33,6 +51,27 @@ pub fn setup_gameplay_camera(
         camera_bounds,
         StateScoped(Screen::Gameplay),
     ));
+}
+
+/// System to set up a loading screen camera
+pub fn setup_loading_camera(
+    mut commands: Commands,
+    existing_cameras: Query<Entity, With<Camera2d>>,
+) {
+    // Remove any existing cameras
+    for camera_entity in &existing_cameras {
+        commands.entity(camera_entity).despawn();
+    }
+
+    // Spawn a basic camera for loading screen
+    commands.spawn((
+        Name::new("Loading Camera"),
+        Camera2d,
+        Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+        StateScoped(Screen::Loading),
+    ));
+
+    info!("Loading camera spawned");
 }
 
 /// System to update camera targets and calculate target position

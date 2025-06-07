@@ -14,11 +14,20 @@ pub(super) fn plugin(app: &mut App) {
 
     app.init_resource::<CameraSettings>();
 
+    // Set up cameras for different screens
+    app.add_systems(OnEnter(crate::screens::Screen::Title), setup_title_camera);
+
+    app.add_systems(
+        OnEnter(crate::screens::Screen::Loading),
+        setup_loading_camera,
+    );
+
     app.add_systems(
         OnEnter(crate::screens::Screen::Gameplay),
         setup_gameplay_camera,
     );
 
+    // Only run camera follow systems during gameplay
     app.add_systems(
         Update,
         (
