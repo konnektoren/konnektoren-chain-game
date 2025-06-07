@@ -123,10 +123,11 @@ pub fn move_player(
 pub fn collect_options(
     mut commands: Commands,
     mut event_writer: EventWriter<OptionCollectedEvent>,
+    mut collection_effects: EventWriter<crate::effects::SpawnCollectionEvent>, // Add this
     mut player_query: Query<(Entity, &Transform), With<Player>>,
     option_query: Query<
         (Entity, &Transform, &OptionCollectible, &OptionType),
-        (Without<Player>, With<super::super::options::OptionVisual>),
+        (Without<Player>, With<crate::options::OptionVisual>),
     >,
 ) {
     for (player_entity, player_transform) in &mut player_query {
@@ -141,6 +142,18 @@ pub fn collect_options(
             let collection_radius = super::PLAYER_SIZE + 14.0; // Option size is 14.0
 
             if distance <= collection_radius {
+                // Spawn collection effect
+                collection_effects.write(crate::effects::SpawnCollectionEvent {
+                    position: option_transform.translation,
+                    color: Color::from(if collectible.is_correct {
+                        // Use a bright green tint for correct answers
+                        bevy::color::palettes::css::GREEN_YELLOW
+                    } else {
+                        // Use a bright red tint for incorrect answers
+                        bevy::color::palettes::css::ORANGE_RED
+                    }),
+                });
+
                 // Send collection event
                 event_writer.write(OptionCollectedEvent {
                     player_entity,

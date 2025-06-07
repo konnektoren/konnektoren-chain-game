@@ -8,6 +8,7 @@ mod audio;
 mod chain;
 #[cfg(feature = "dev")]
 mod dev_tools;
+mod effects;
 mod gameplay;
 mod input;
 mod map;

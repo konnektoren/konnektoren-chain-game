@@ -44,6 +44,7 @@ impl Plugin for AppPlugin {
             gameplay::plugin,
             input::plugin,
             theme::plugin,
+            effects::plugin,
         ));
 
         // Order new `AppSystems` variants by adding them here:

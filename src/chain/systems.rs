@@ -453,6 +453,7 @@ pub fn animate_reacting_segments(
     mut reacting_query: Query<(Entity, &mut ChainReaction, &mut Transform, &ChainSegment)>,
     mut player_chain_query: Query<&mut PlayerChain>,
     mut destruction_events: EventWriter<ChainSegmentDestroyedEvent>,
+    mut explosion_events: EventWriter<crate::effects::SpawnExplosionEvent>, // Add this
     reaction_state: Res<ChainReactionState>,
 ) {
     for (entity, mut reaction, mut transform, segment) in &mut reacting_query {
@@ -474,6 +475,13 @@ pub fn animate_reacting_segments(
                 if progress > 0.6 {
                     reaction.reaction_phase = ReactionPhase::Vanishing;
                     info!("Segment {} entering vanishing phase", segment.segment_index);
+
+                    // Spawn explosion effect when entering vanishing phase
+                    explosion_events.write(crate::effects::SpawnExplosionEvent {
+                        position: transform.translation,
+                        color: segment.base_color,
+                        intensity: 1.0,
+                    });
                 }
             }
             ReactionPhase::Vanishing => {
@@ -494,7 +502,7 @@ pub fn animate_reacting_segments(
                     player_entity,
                     segment_index: segment.segment_index,
                     option_text: segment.option_text.clone(),
-                    points_lost: super::POINTS_LOST_PER_SEGMENT,
+                    points_lost: crate::chain::POINTS_LOST_PER_SEGMENT,
                 });
             }
 
