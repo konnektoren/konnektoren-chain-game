@@ -32,6 +32,7 @@ pub fn detect_gamepads(
 pub fn handle_keyboard_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut controller_query: Query<(&mut InputController, &PlayerInputMapping)>,
+    mut joystick_state: ResMut<VirtualJoystickState>, // Add this
 ) {
     let mapping = KeyboardMapping::default();
 
@@ -60,6 +61,14 @@ pub fn handle_keyboard_input(
             movement = movement.normalize();
             controller.movement_input = movement;
             controller.input_source = InputSource::Keyboard;
+
+            // Update virtual joystick to show keyboard direction
+            joystick_state.movement_vector = movement;
+            joystick_state.is_active = true;
+        } else if controller.input_source == InputSource::Keyboard {
+            // Reset if no keyboard input
+            joystick_state.movement_vector = Vec2::ZERO;
+            joystick_state.is_active = false;
         }
 
         // Handle action input
@@ -76,6 +85,7 @@ pub fn handle_gamepad_input(
     gamepads: Query<(Entity, &Gamepad)>,
     gamepad_settings: Res<CustomGamepadSettings>,
     mut controller_query: Query<(&mut InputController, &PlayerInputMapping)>,
+    mut joystick_state: ResMut<VirtualJoystickState>, // Add this
 ) {
     let mapping = GamepadMapping::default();
 
@@ -130,6 +140,14 @@ pub fn handle_gamepad_input(
         if movement.length() > gamepad_settings.deadzone {
             controller.movement_input = movement;
             controller.input_source = InputSource::Gamepad(gamepad_entity);
+
+            // Update virtual joystick to show gamepad direction
+            joystick_state.movement_vector = movement;
+            joystick_state.is_active = true;
+        } else if matches!(controller.input_source, InputSource::Gamepad(_)) {
+            // Reset if no gamepad input
+            joystick_state.movement_vector = Vec2::ZERO;
+            joystick_state.is_active = false;
         }
 
         // Handle action input
@@ -260,7 +278,7 @@ pub fn setup_virtual_joystick(mut commands: Commands) {
         Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(50.0),
-            right: Val::Px(50.0), // Changed from left to right
+            right: Val::Px(50.0),
             width: Val::Px(joystick_size),
             height: Val::Px(joystick_size),
             align_items: AlignItems::Center,
@@ -268,7 +286,7 @@ pub fn setup_virtual_joystick(mut commands: Commands) {
             ..default()
         },
         BackgroundColor(Color::NONE),
-        Visibility::Visible, // Always visible initially for testing
+        Visibility::Visible, // Always visible
         StateScoped(Screen::Gameplay),
         children![
             // Base circle (outer ring)
@@ -306,7 +324,7 @@ pub fn setup_virtual_joystick(mut commands: Commands) {
         ],
     ));
 
-    info!("Virtual joystick UI created on the right side");
+    info!("Virtual joystick UI created (always visible)");
 }
 
 /// System to update virtual joystick visual position
@@ -314,15 +332,11 @@ pub fn update_virtual_joystick_visual(
     joystick_state: Res<VirtualJoystickState>,
     mut knob_query: Query<&mut Node, With<VirtualJoystickKnob>>,
 ) {
-    if !joystick_state.is_changed() {
-        return;
-    }
-
     let joystick_size = super::VIRTUAL_JOYSTICK_RADIUS * 2.0;
     let knob_size = super::VIRTUAL_JOYSTICK_KNOB_SIZE * 2.0;
 
     for mut node in &mut knob_query {
-        if joystick_state.is_active {
+        if joystick_state.movement_vector.length() > 0.01 {
             // Calculate knob position based on movement vector
             let offset = joystick_state.movement_vector
                 * (super::VIRTUAL_JOYSTICK_RADIUS - super::VIRTUAL_JOYSTICK_KNOB_SIZE);
@@ -337,47 +351,5 @@ pub fn update_virtual_joystick_visual(
             node.left = Val::Px(center_offset);
             node.top = Val::Px(center_offset);
         }
-    }
-}
-
-/// System to toggle virtual joystick visibility based on input source
-pub fn toggle_virtual_joystick_visibility(
-    controller_query: Query<&InputController, With<crate::player::Player>>,
-    gamepad_settings: Res<CustomGamepadSettings>,
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut joystick_query: Query<&mut Visibility, With<VirtualJoystick>>,
-    joystick_state: Res<VirtualJoystickState>,
-) {
-    let mut should_show_joystick = true;
-
-    // Check if keyboard is being used (any key pressed)
-    if keyboard.get_pressed().count() > 0 {
-        should_show_joystick = false;
-    }
-
-    // Check if gamepad is being used
-    if !gamepad_settings.connected_gamepads.is_empty() {
-        for controller in &controller_query {
-            if matches!(controller.input_source, InputSource::Gamepad(_))
-                && controller.movement_input.length() > 0.1
-            {
-                should_show_joystick = false;
-                break;
-            }
-        }
-    }
-
-    // Always show if touch/mouse is active
-    if joystick_state.is_active {
-        should_show_joystick = true;
-    }
-
-    // Update joystick visibility
-    for mut visibility in &mut joystick_query {
-        *visibility = if should_show_joystick {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
     }
 }

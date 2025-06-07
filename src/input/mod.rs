@@ -35,7 +35,6 @@ pub(super) fn plugin(app: &mut App) {
                 handle_mouse_input,
                 handle_touch_input,
                 update_virtual_joystick_visual,
-                toggle_virtual_joystick_visibility,
             )
                 .in_set(crate::AppSystems::RecordInput),
         )
