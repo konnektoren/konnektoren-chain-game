@@ -1,5 +1,6 @@
 use super::components::*;
 use crate::{
+    map::GridMap,
     player::{OptionCollectedEvent, Player},
     screens::Screen,
 };
@@ -135,23 +136,99 @@ fn create_chain_segment(
 /// System to update chain segment positions based on the movement trail
 pub fn update_chain_positions(
     movement_trail: Res<MovementTrail>,
+    grid_map: Option<Res<GridMap>>,
     player_chain_query: Query<&PlayerChain>,
     mut segment_query: Query<(&ChainSegment, &mut Transform), Without<ChainReaction>>,
 ) {
+    let Some(grid_map) = grid_map else {
+        return;
+    };
+
+    let map_width = grid_map.width as f32 * grid_map.cell_size;
+    let map_height = grid_map.height as f32 * grid_map.cell_size;
+
     for player_chain in &player_chain_query {
         for &segment_entity in &player_chain.segments {
             if let Ok((segment, mut transform)) = segment_query.get_mut(segment_entity) {
                 let distance = (segment.segment_index + 1) as f32 * super::CHAIN_SEGMENT_SPACING;
 
-                if let Some(target_position) = movement_trail.get_position_at_distance(distance) {
+                if let Some(target_position) = movement_trail
+                    .get_position_at_distance_with_wraparound(distance, map_width, map_height)
+                {
                     // Smooth movement to target position
                     let current_pos = transform.translation.xy();
-                    let new_pos = current_pos.lerp(target_position, 0.15); // Smooth following
+
+                    // Calculate the shortest path considering wraparound
+                    let new_pos = calculate_shortest_movement(
+                        current_pos,
+                        target_position,
+                        map_width / 2.0,
+                        map_height / 2.0,
+                        0.15, // lerp factor
+                    );
+
                     transform.translation.x = new_pos.x;
                     transform.translation.y = new_pos.y;
                 }
             }
         }
+    }
+}
+
+/// Calculate the shortest movement path considering wraparound
+fn calculate_shortest_movement(
+    current: Vec2,
+    target: Vec2,
+    half_width: f32,
+    half_height: f32,
+    lerp_factor: f32,
+) -> Vec2 {
+    let map_width = half_width * 2.0;
+    let map_height = half_height * 2.0;
+
+    // Calculate direct movement
+    let direct_movement = current.lerp(target, lerp_factor);
+
+    // Calculate wraparound movement for X
+    let dx = target.x - current.x;
+    let wrap_target_x = if dx > half_width {
+        target.x - map_width
+    } else if dx < -half_width {
+        target.x + map_width
+    } else {
+        target.x
+    };
+
+    // Calculate wraparound movement for Y
+    let dy = target.y - current.y;
+    let wrap_target_y = if dy > half_height {
+        target.y - map_height
+    } else if dy < -half_height {
+        target.y + map_height
+    } else {
+        target.y
+    };
+
+    let wrap_target = Vec2::new(wrap_target_x, wrap_target_y);
+    let wrap_movement = current.lerp(wrap_target, lerp_factor);
+
+    // Choose the movement that results in shorter distance
+    if current.distance(direct_movement) <= current.distance(wrap_movement) {
+        direct_movement
+    } else {
+        // Apply wraparound if needed
+        let mut result = wrap_movement;
+        if result.x > half_width {
+            result.x -= map_width;
+        } else if result.x < -half_width {
+            result.x += map_width;
+        }
+        if result.y > half_height {
+            result.y -= map_height;
+        } else if result.y < -half_height {
+            result.y += map_height;
+        }
+        result
     }
 }
 

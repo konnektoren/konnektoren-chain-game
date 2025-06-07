@@ -59,7 +59,7 @@ impl Default for MovementTrail {
 }
 
 impl MovementTrail {
-    /// Get position at a specific distance behind the player
+    /// Get position at a specific distance behind the player with wraparound support
     pub fn get_position_at_distance(&self, distance: f32) -> Option<Vec2> {
         if self.positions.is_empty() {
             return None;
@@ -86,11 +86,62 @@ impl MovementTrail {
         self.positions.back().copied()
     }
 
+    /// Get position at a specific distance with wraparound awareness
+    pub fn get_position_at_distance_with_wraparound(
+        &self,
+        distance: f32,
+        map_width: f32,
+        map_height: f32,
+    ) -> Option<Vec2> {
+        if self.positions.is_empty() {
+            return None;
+        }
+
+        let mut accumulated_distance = 0.0;
+        let half_width = map_width / 2.0;
+        let half_height = map_height / 2.0;
+
+        for i in 0..self.positions.len().saturating_sub(1) {
+            let current_pos = self.positions[i];
+            let next_pos = self.positions[i + 1];
+
+            // Calculate distance considering wraparound
+            let segment_distance =
+                calculate_wraparound_distance(current_pos, next_pos, half_width, half_height);
+
+            if accumulated_distance + segment_distance >= distance {
+                // Interpolate between current and next position with wraparound
+                let remaining_distance = distance - accumulated_distance;
+                let t = remaining_distance / segment_distance;
+                return Some(interpolate_with_wraparound(
+                    current_pos,
+                    next_pos,
+                    t,
+                    half_width,
+                    half_height,
+                ));
+            }
+
+            accumulated_distance += segment_distance;
+        }
+
+        // If we've run out of trail, return the oldest position
+        self.positions.back().copied()
+    }
+
     /// Add a new position to the trail
     pub fn add_position(&mut self, position: Vec2) {
         // Only add if it's significantly different from the last position
+        // But consider wraparound when calculating distance
         if let Some(&last_pos) = self.positions.front() {
-            if last_pos.distance(position) < 5.0 {
+            let distance = if self.positions.len() > 1 {
+                // Simple distance check for now, could be enhanced with wraparound
+                last_pos.distance(position)
+            } else {
+                last_pos.distance(position)
+            };
+
+            if distance < 5.0 {
                 return; // Too close, don't add
             }
         }
@@ -102,6 +153,86 @@ impl MovementTrail {
             self.positions.pop_back();
         }
     }
+}
+
+/// Calculate distance between two points considering map wraparound
+fn calculate_wraparound_distance(pos1: Vec2, pos2: Vec2, half_width: f32, half_height: f32) -> f32 {
+    // Calculate direct distance
+    let direct_distance = pos1.distance(pos2);
+
+    // Calculate wraparound distances
+    let dx = (pos2.x - pos1.x).abs();
+    let dy = (pos2.y - pos1.y).abs();
+
+    let wrap_dx = (half_width * 2.0) - dx;
+    let wrap_dy = (half_height * 2.0) - dy;
+
+    // Use the shorter distance in each dimension
+    let effective_dx = dx.min(wrap_dx);
+    let effective_dy = dy.min(wrap_dy);
+
+    // Return the shorter of direct distance or wraparound distance
+    direct_distance.min((effective_dx * effective_dx + effective_dy * effective_dy).sqrt())
+}
+
+/// Interpolate between two positions considering wraparound
+fn interpolate_with_wraparound(
+    pos1: Vec2,
+    pos2: Vec2,
+    t: f32,
+    half_width: f32,
+    half_height: f32,
+) -> Vec2 {
+    let map_width = half_width * 2.0;
+    let map_height = half_height * 2.0;
+
+    // Calculate the shortest path for X
+    let dx = pos2.x - pos1.x;
+    let x = if dx.abs() <= map_width - dx.abs() {
+        // Direct path is shorter
+        pos1.x + dx * t
+    } else {
+        // Wraparound path is shorter
+        let wrap_dx = if dx > 0.0 {
+            dx - map_width
+        } else {
+            dx + map_width
+        };
+        let new_x = pos1.x + wrap_dx * t;
+        // Handle wraparound
+        if new_x > half_width {
+            new_x - map_width
+        } else if new_x < -half_width {
+            new_x + map_width
+        } else {
+            new_x
+        }
+    };
+
+    // Calculate the shortest path for Y
+    let dy = pos2.y - pos1.y;
+    let y = if dy.abs() <= map_height - dy.abs() {
+        // Direct path is shorter
+        pos1.y + dy * t
+    } else {
+        // Wraparound path is shorter
+        let wrap_dy = if dy > 0.0 {
+            dy - map_height
+        } else {
+            dy + map_height
+        };
+        let new_y = pos1.y + wrap_dy * t;
+        // Handle wraparound
+        if new_y > half_height {
+            new_y - map_height
+        } else if new_y < -half_height {
+            new_y + map_height
+        } else {
+            new_y
+        }
+    };
+
+    Vec2::new(x, y)
 }
 
 /// Component for objects flying to join the chain

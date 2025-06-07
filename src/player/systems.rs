@@ -69,7 +69,7 @@ pub fn handle_player_input(
     }
 }
 
-/// System to move the player smoothly
+/// System to move the player smoothly with wraparound at borders
 pub fn move_player(
     time: Res<Time>,
     grid_map: Option<Res<GridMap>>,
@@ -96,28 +96,41 @@ pub fn move_player(
         // Calculate grid bounds in world coordinates
         let half_width = (grid_map.width as f32 * grid_map.cell_size) / 2.0;
         let half_height = (grid_map.height as f32 * grid_map.cell_size) / 2.0;
-        let player_radius = super::PLAYER_SIZE;
 
-        // Clamp to grid bounds (with player radius buffer)
-        let clamped_world_pos = Vec2::new(
-            new_world_pos
-                .x
-                .clamp(-half_width + player_radius, half_width - player_radius),
-            new_world_pos
-                .y
-                .clamp(-half_height + player_radius, half_height - player_radius),
-        );
+        // Handle wraparound - teleport to opposite side when crossing borders
+        let wrapped_world_pos = handle_map_wraparound(new_world_pos, half_width, half_height);
 
         // Update transform
-        transform.translation.x = clamped_world_pos.x;
-        transform.translation.y = clamped_world_pos.y;
+        transform.translation.x = wrapped_world_pos.x;
+        transform.translation.y = wrapped_world_pos.y;
 
         // Update grid position based on current world position
-        if let Some((grid_x, grid_y)) = grid_map.world_to_grid(clamped_world_pos) {
+        if let Some((grid_x, grid_y)) = grid_map.world_to_grid(wrapped_world_pos) {
             grid_pos.x = grid_x;
             grid_pos.y = grid_y;
         }
     }
+}
+
+/// Handle map wraparound when player crosses borders
+fn handle_map_wraparound(position: Vec2, half_width: f32, half_height: f32) -> Vec2 {
+    let mut wrapped_pos = position;
+
+    // Handle horizontal wraparound
+    if wrapped_pos.x > half_width {
+        wrapped_pos.x = -half_width + (wrapped_pos.x - half_width);
+    } else if wrapped_pos.x < -half_width {
+        wrapped_pos.x = half_width + (wrapped_pos.x + half_width);
+    }
+
+    // Handle vertical wraparound
+    if wrapped_pos.y > half_height {
+        wrapped_pos.y = -half_height + (wrapped_pos.y - half_height);
+    } else if wrapped_pos.y < -half_height {
+        wrapped_pos.y = half_height + (wrapped_pos.y + half_height);
+    }
+
+    wrapped_pos
 }
 
 /// System to handle option collection with smooth movement

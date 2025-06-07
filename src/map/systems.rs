@@ -61,7 +61,7 @@ fn spawn_grid_background(
     ));
 }
 
-/// Create a mesh for the grid lines
+/// Create a mesh for the grid lines with wraparound indicators
 fn create_grid_mesh(grid_map: &GridMap, meshes: &mut Assets<Mesh>) -> Handle<Mesh> {
     let mut mesh = Mesh::new(
         bevy::render::render_resource::PrimitiveTopology::LineList,
@@ -77,6 +77,7 @@ fn create_grid_mesh(grid_map: &GridMap, meshes: &mut Assets<Mesh>) -> Handle<Mes
     let mut indices = Vec::new();
     let mut index = 0u32;
 
+    // Regular grid lines
     // Vertical lines
     for i in 0..=grid_map.width {
         let x = (i as f32 * grid_map.cell_size) - half_width;
