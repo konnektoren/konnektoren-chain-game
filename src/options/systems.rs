@@ -151,16 +151,16 @@ fn spawn_option_collectible(
         OptionVisual,
         StateScoped(Screen::Gameplay),
         children![
-            // Text label for the option
+            // Text label for the option - centered inside the ball
             (
                 Name::new("Option Text"),
                 Text2d::new(option_text),
                 TextFont {
-                    font_size: 12.0,
+                    font_size: 14.0, // Larger font for options
                     ..default()
                 },
                 TextColor(Color::WHITE),
-                Transform::from_translation(Vec3::new(0.0, -25.0, 0.1)),
+                Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)), // Centered at (0,0)
             )
         ],
     ));

@@ -103,22 +103,22 @@ fn create_chain_segment(
         let segment_entity = commands
             .spawn((
                 Name::new(format!("Chain Segment: {}", option_text)),
-                ChainSegment::new(segment_index, option_text.clone(), color), // Clone here
+                ChainSegment::new(segment_index, option_text.clone(), color),
                 Mesh2d(mesh),
                 MeshMaterial2d(material),
                 Transform::from_translation(Vec3::new(position.x, position.y, 1.5)),
                 StateScoped(Screen::Gameplay),
                 children![
-                    // Text label for the segment
+                    // Text label for the segment - centered inside the ball
                     (
                         Name::new("Chain Segment Text"),
-                        Text2d::new(option_text.clone()), // Clone here too
+                        Text2d::new(option_text.clone()),
                         TextFont {
-                            font_size: 8.0,
+                            font_size: 10.0, // Slightly larger font
                             ..default()
                         },
                         TextColor(Color::WHITE),
-                        Transform::from_translation(Vec3::new(0.0, -18.0, 0.1)),
+                        Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)), // Centered at (0,0)
                     )
                 ],
             ))
@@ -127,8 +127,7 @@ fn create_chain_segment(
         player_chain.segments.push(segment_entity);
         info!(
             "Created chain segment {} with text: {}",
-            segment_index,
-            option_text // Now this works since we cloned above
+            segment_index, option_text
         );
     }
 }
@@ -278,6 +277,19 @@ pub fn create_flying_to_chain_objects(
                     event.option_color,
                 ),
                 StateScoped(Screen::Gameplay),
+                children![
+                    // Text label for the flying object - centered inside
+                    (
+                        Name::new("Flying Object Text"),
+                        Text2d::new(event.option_text.clone()),
+                        TextFont {
+                            font_size: 10.0,
+                            ..default()
+                        },
+                        TextColor(Color::WHITE),
+                        Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)), // Centered
+                    )
+                ],
             ));
 
             info!("Started fly-to-chain animation for: {}", event.option_text);
