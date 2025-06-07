@@ -136,7 +136,7 @@ fn create_chain_segment(
 pub fn update_chain_positions(
     movement_trail: Res<MovementTrail>,
     player_chain_query: Query<&PlayerChain>,
-    mut segment_query: Query<(&ChainSegment, &mut Transform)>,
+    mut segment_query: Query<(&ChainSegment, &mut Transform), Without<ChainReaction>>,
 ) {
     for player_chain in &player_chain_query {
         for &segment_entity in &player_chain.segments {
@@ -158,7 +158,7 @@ pub fn update_chain_positions(
 /// System to animate chain segments (pulsing and gentle floating)
 pub fn animate_chain_segments(
     time: Res<Time>,
-    mut segment_query: Query<(&mut ChainSegment, &mut Transform)>,
+    mut segment_query: Query<(&mut ChainSegment, &mut Transform), Without<ChainReaction>>, // Exclude reacting segments
 ) {
     let time_factor = time.elapsed_secs();
 
@@ -174,15 +174,13 @@ pub fn animate_chain_segments(
         let float_offset_x = (time_factor * 0.8 + segment.segment_index as f32 * 0.5).sin() * 2.0;
         let float_offset_y = (time_factor * 1.2 + segment.segment_index as f32 * 0.7).cos() * 1.5;
 
-        // Apply floating offset (this gets overridden by position updates, so we store base position)
-        // We'll modify this to work better with the position system
+        // Apply floating offset
         let base_translation = Vec3::new(
             transform.translation.x + float_offset_x * 0.3,
             transform.translation.y + float_offset_y * 0.3,
             transform.translation.z,
         );
 
-        // Only apply floating if the segment isn't being actively positioned
         transform.translation = base_translation;
     }
 }
@@ -314,14 +312,201 @@ pub fn track_player_movement(
         for transform in &player_query {
             let position = transform.translation.xy();
             movement_trail.add_position(position);
-            // Debug log every few samples
-            if movement_trail.positions.len() % 20 == 0 {
-                info!(
-                    "Movement trail has {} positions, latest: {:?}",
-                    movement_trail.positions.len(),
-                    position
-                );
+        }
+    }
+}
+
+/// System to detect when player collides with their own chain
+pub fn detect_player_chain_collision(
+    mut reaction_events: EventWriter<ChainReactionEvent>,
+    player_query: Query<(Entity, &Transform, &PlayerChain), With<Player>>,
+    segment_query: Query<(&ChainSegment, &Transform), (With<ChainSegment>, Without<Player>)>,
+    reaction_state: Res<ChainReactionState>,
+) {
+    // Don't detect new collisions if a reaction is already active
+    if reaction_state.is_active {
+        return;
+    }
+
+    for (player_entity, player_transform, player_chain) in &player_query {
+        let player_pos = player_transform.translation.xy();
+
+        for &segment_entity in &player_chain.segments {
+            if let Ok((segment, segment_transform)) = segment_query.get(segment_entity) {
+                // Skip collision detection for the first chain element (index 0)
+                if segment.segment_index == 0 {
+                    continue;
+                }
+
+                let segment_pos = segment_transform.translation.xy();
+                let distance = player_pos.distance(segment_pos);
+
+                // Check collision (player radius + segment radius)
+                let collision_distance = crate::player::PLAYER_SIZE + super::CHAIN_SEGMENT_SIZE;
+
+                if distance <= collision_distance {
+                    info!(
+                        "Player hit chain segment {} at distance {}",
+                        segment.segment_index, distance
+                    );
+
+                    reaction_events.write(ChainReactionEvent {
+                        player_entity,
+                        hit_segment_index: segment.segment_index,
+                    });
+                    break; // Only trigger one reaction at a time
+                }
             }
+        }
+    }
+}
+
+/// System to handle chain reaction events
+pub fn handle_chain_reaction_events(
+    mut reaction_events: EventReader<ChainReactionEvent>,
+    mut reaction_state: ResMut<ChainReactionState>,
+) {
+    for event in reaction_events.read() {
+        if !reaction_state.is_active {
+            info!(
+                "Starting chain reaction at segment {}",
+                event.hit_segment_index
+            );
+
+            reaction_state.is_active = true;
+            reaction_state.player_entity = Some(event.player_entity);
+            reaction_state.hit_segment_index = Some(event.hit_segment_index);
+            reaction_state.current_spread_distance = 0;
+            reaction_state.reaction_spread_timer.reset();
+        }
+    }
+}
+
+/// System to update the chain reaction spread
+pub fn update_chain_reaction(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut reaction_state: ResMut<ChainReactionState>,
+    player_chain_query: Query<&PlayerChain>,
+    segment_query: Query<(Entity, &ChainSegment), (With<ChainSegment>, Without<ChainReaction>)>,
+) {
+    if !reaction_state.is_active {
+        return;
+    }
+
+    reaction_state.reaction_spread_timer.tick(time.delta());
+
+    if reaction_state.reaction_spread_timer.just_finished() {
+        let Some(hit_index) = reaction_state.hit_segment_index else {
+            return;
+        };
+
+        let spread_distance = reaction_state.current_spread_distance;
+        let mut segments_to_react = Vec::new();
+
+        // Find segments at the current spread distance
+        for player_chain in &player_chain_query {
+            for &segment_entity in &player_chain.segments {
+                if let Ok((entity, segment)) = segment_query.get(segment_entity) {
+                    let segment_distance_from_hit =
+                        (segment.segment_index as i32 - hit_index as i32).abs();
+
+                    if segment_distance_from_hit == spread_distance {
+                        segments_to_react.push(entity);
+                    }
+                }
+            }
+        }
+
+        // Add ChainReaction component to segments that should start reacting
+        for entity in segments_to_react {
+            info!(
+                "Starting reaction on segment at distance {} from hit",
+                spread_distance
+            );
+            commands
+                .entity(entity)
+                .insert(ChainReaction::new(super::REACTION_BALL_DURATION));
+        }
+
+        // Increase spread distance for next iteration
+        reaction_state.current_spread_distance += 1;
+
+        // Check if reaction is complete
+        if reaction_state.current_spread_distance > reaction_state.max_spread_distance {
+            // Check if any segments are still reacting
+            let reacting_segments: Vec<_> = segment_query.iter().collect();
+            if reacting_segments.is_empty() {
+                info!("Chain reaction complete");
+                reaction_state.is_active = false;
+                reaction_state.hit_segment_index = None;
+                reaction_state.current_spread_distance = 0;
+            }
+        }
+    }
+}
+
+/// System to animate reacting chain segments
+pub fn animate_reacting_segments(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut reacting_query: Query<(Entity, &mut ChainReaction, &mut Transform, &ChainSegment)>,
+    mut player_chain_query: Query<&mut PlayerChain>,
+    mut destruction_events: EventWriter<ChainSegmentDestroyedEvent>,
+    reaction_state: Res<ChainReactionState>,
+) {
+    for (entity, mut reaction, mut transform, segment) in &mut reacting_query {
+        reaction.reaction_timer.tick(time.delta());
+
+        let progress = reaction.reaction_timer.fraction();
+
+        match reaction.reaction_phase {
+            ReactionPhase::Reacting => {
+                // Pulsing and growing effect
+                let pulse_intensity = 1.0 + progress * 2.0; // Grow up to 3x size
+                let pulse_frequency = 10.0; // Fast pulsing
+                let pulse =
+                    pulse_intensity * (1.0 + (time.elapsed_secs() * pulse_frequency).sin() * 0.3);
+
+                transform.scale = Vec3::splat(pulse);
+
+                // Change to vanishing phase partway through
+                if progress > 0.6 {
+                    reaction.reaction_phase = ReactionPhase::Vanishing;
+                    info!("Segment {} entering vanishing phase", segment.segment_index);
+                }
+            }
+            ReactionPhase::Vanishing => {
+                // Shrinking effect
+                let vanish_progress = (progress - 0.6) / 0.4; // Progress within vanishing phase
+                let scale = (1.0 - vanish_progress).max(0.0);
+                transform.scale = Vec3::splat(scale);
+            }
+        }
+
+        // Remove segment when reaction is complete
+        if reaction.reaction_timer.finished() {
+            info!("Removing reacted segment {}", segment.segment_index);
+
+            // Fire destruction event for scoring
+            if let Some(player_entity) = reaction_state.player_entity {
+                destruction_events.write(ChainSegmentDestroyedEvent {
+                    player_entity,
+                    segment_index: segment.segment_index,
+                    option_text: segment.option_text.clone(),
+                    points_lost: super::POINTS_LOST_PER_SEGMENT,
+                });
+            }
+
+            // Remove from player chain
+            for mut player_chain in &mut player_chain_query {
+                player_chain
+                    .segments
+                    .retain(|&seg_entity| seg_entity != entity);
+            }
+
+            // Despawn the entity
+            commands.entity(entity).despawn();
         }
     }
 }

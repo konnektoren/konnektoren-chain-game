@@ -127,11 +127,6 @@ fn spawn_option_collectible(
     let color_index = option_id % base_colors.len();
     let color = base_colors[color_index];
 
-    info!(
-        "Spawning option with id: {}, text: '{}', color_index: {}",
-        option_id, option_text, color_index
-    );
-
     // Create the visual mesh (a circle)
     let mesh = meshes.add(Circle::new(14.0));
     let material = materials.add(ColorMaterial::from(color));

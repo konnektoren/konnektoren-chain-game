@@ -32,6 +32,7 @@ pub(super) fn plugin(app: &mut App) {
             update_game_timer.in_set(crate::AppSystems::TickTimers),
             handle_option_collection_events.in_set(crate::AppSystems::Update),
             handle_score_events.in_set(crate::AppSystems::Update),
+            handle_chain_destruction_events.in_set(crate::AppSystems::Update), // Add this
             update_score_display.in_set(crate::AppSystems::Update),
             update_timer_display.in_set(crate::AppSystems::Update),
         )

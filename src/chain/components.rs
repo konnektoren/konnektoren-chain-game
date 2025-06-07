@@ -155,3 +155,73 @@ pub struct ChainExtendEvent {
     pub option_color: Color,
     pub collect_position: Vec2,
 }
+
+/// Component for chain segments undergoing reaction
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct ChainReaction {
+    pub reaction_timer: Timer,
+    pub reaction_phase: ReactionPhase,
+    pub original_scale: f32,
+}
+
+impl ChainReaction {
+    pub fn new(reaction_duration: f32) -> Self {
+        Self {
+            reaction_timer: Timer::from_seconds(reaction_duration, TimerMode::Once),
+            reaction_phase: ReactionPhase::Reacting,
+            original_scale: 1.0,
+        }
+    }
+}
+
+/// Phases of the chain reaction
+#[derive(Reflect, Clone, PartialEq)]
+pub enum ReactionPhase {
+    Reacting,  // Ball is pulsing/glowing before disappearing
+    Vanishing, // Ball is disappearing
+}
+
+/// Resource to manage the chain reaction state
+#[derive(Resource, Reflect)]
+#[reflect(Resource)]
+pub struct ChainReactionState {
+    pub is_active: bool,
+    pub player_entity: Option<Entity>,
+    pub hit_segment_index: Option<usize>,
+    pub reaction_spread_timer: Timer,
+    pub current_spread_distance: i32,
+    pub max_spread_distance: i32,
+}
+
+impl Default for ChainReactionState {
+    fn default() -> Self {
+        Self {
+            is_active: false,
+            player_entity: None,
+            hit_segment_index: None,
+            reaction_spread_timer: Timer::from_seconds(
+                super::REACTION_SPREAD_INTERVAL,
+                TimerMode::Repeating,
+            ),
+            current_spread_distance: 0,
+            max_spread_distance: 20, // Maximum spread distance
+        }
+    }
+}
+
+/// Event for when a chain reaction starts
+#[derive(Event)]
+pub struct ChainReactionEvent {
+    pub player_entity: Entity,
+    pub hit_segment_index: usize,
+}
+
+/// Event for when chain segments are destroyed and points should be deducted
+#[derive(Event)]
+pub struct ChainSegmentDestroyedEvent {
+    pub player_entity: Entity,
+    pub segment_index: usize,
+    pub option_text: String,
+    pub points_lost: i32,
+}

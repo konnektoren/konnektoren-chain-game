@@ -197,3 +197,25 @@ pub fn handle_option_collection_events(
         });
     }
 }
+
+/// System to handle chain segment destruction events and update score
+pub fn handle_chain_destruction_events(
+    mut destruction_events: EventReader<crate::chain::ChainSegmentDestroyedEvent>,
+    mut gameplay_score: ResMut<GameplayScore>,
+) {
+    for event in destruction_events.read() {
+        // Ensure player exists in the score tracking
+        if !gameplay_score.players.contains_key(&event.player_entity) {
+            gameplay_score.add_player(event.player_entity, "Player 1".to_string());
+        }
+
+        // Deduct points from player score
+        if let Some(player_score) = gameplay_score.get_player_score_mut(event.player_entity) {
+            player_score.total_score = (player_score.total_score - event.points_lost).max(0);
+            info!(
+                "Chain destruction! Segment {} ('{}') destroyed. Player lost {} points. Total: {}",
+                event.segment_index, event.option_text, event.points_lost, player_score.total_score
+            );
+        }
+    }
+}
