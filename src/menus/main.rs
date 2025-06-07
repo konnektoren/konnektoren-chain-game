@@ -1,5 +1,3 @@
-//! The main menu (seen on the title screen).
-
 use bevy::prelude::*;
 
 use crate::{asset_tracking::ResourceHandles, menus::Menu, screens::Screen, theme::widget};
@@ -18,6 +16,7 @@ fn spawn_main_menu(mut commands: Commands) {
             widget::button("Play", enter_loading_or_gameplay_screen),
             widget::button("Settings", open_settings_menu),
             widget::button("Credits", open_credits_menu),
+            widget::button("konnektoren.help", open_konnektoren_website),
             widget::button("Exit", exit_app),
         ],
         #[cfg(target_family = "wasm")]
@@ -25,6 +24,7 @@ fn spawn_main_menu(mut commands: Commands) {
             widget::button("Play", enter_loading_or_gameplay_screen),
             widget::button("Settings", open_settings_menu),
             widget::button("Credits", open_credits_menu),
+            widget::button("🚀 Coming Soon: konnektoren.help", open_konnektoren_website),
         ],
     ));
 }
@@ -47,6 +47,27 @@ fn open_settings_menu(_: Trigger<Pointer<Click>>, mut next_menu: ResMut<NextStat
 
 fn open_credits_menu(_: Trigger<Pointer<Click>>, mut next_menu: ResMut<NextState<Menu>>) {
     next_menu.set(Menu::Credits);
+}
+
+// Alternative version with "Coming Soon" styling
+fn open_konnektoren_website(_: Trigger<Pointer<Click>>) {
+    let url = "https://konnektoren.help";
+
+    info!("🚀 Coming to konnektoren.help soon! Opening preview...");
+
+    #[cfg(target_family = "wasm")]
+    {
+        use wasm_bindgen::JsCast;
+
+        if let Some(window) = web_sys::window() {
+            let _ = window.open_with_url_and_target(url, "_blank");
+        }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    {
+        let _ = webbrowser::open(url);
+    }
 }
 
 #[cfg(not(target_family = "wasm"))]

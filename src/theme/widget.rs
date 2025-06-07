@@ -61,7 +61,7 @@ where
         action,
         (
             Node {
-                width: Px(380.0),
+                width: Px(450.0),
                 height: Px(80.0),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
