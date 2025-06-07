@@ -4,6 +4,7 @@ mod components;
 mod systems;
 
 pub use components::*;
+pub use systems::spawn_player;
 use systems::*;
 
 pub(super) fn plugin(app: &mut App) {
