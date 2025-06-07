@@ -60,6 +60,7 @@ pub fn handle_player_input(
     for (mut controller, input_controller) in &mut player_query {
         // Only accept input if player can move
         if !controller.can_move {
+            controller.movement_input = Vec2::ZERO;
             continue;
         }
 
