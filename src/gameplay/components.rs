@@ -146,9 +146,21 @@ pub struct ScoreDisplay;
 #[reflect(Component)]
 pub struct TimerDisplay;
 
-/// Component for player score display UI
+/// Component for individual player score display UI
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct PlayerScoreDisplay {
-    pub player_entity: Entity,
+    pub player_index: usize,
 }
+
+/// Component for individual player stats display UI
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct PlayerStatsDisplay {
+    pub player_index: usize,
+}
+
+/// Component for team stats display UI
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct TeamStatsDisplay;

@@ -17,6 +17,7 @@ pub(super) fn plugin(app: &mut App) {
     app.register_type::<PlayerAura>();
     app.register_type::<PlayerEnergyParticles>();
     app.register_type::<PlayerTrail>();
+    app.register_type::<PlayerIndex>();
 
     // Register the events
     app.add_event::<OptionCollectedEvent>();

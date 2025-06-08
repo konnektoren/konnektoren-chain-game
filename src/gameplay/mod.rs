@@ -12,6 +12,9 @@ pub(super) fn plugin(app: &mut App) {
     app.register_type::<GameTimer>();
     app.register_type::<ScoreDisplay>();
     app.register_type::<TimerDisplay>();
+    app.register_type::<PlayerScoreDisplay>();
+    app.register_type::<PlayerStatsDisplay>();
+    app.register_type::<TeamStatsDisplay>();
 
     // Register events
     app.add_event::<ScoreUpdateEvent>();
@@ -32,8 +35,10 @@ pub(super) fn plugin(app: &mut App) {
             update_game_timer.in_set(crate::AppSystems::TickTimers),
             handle_option_collection_events.in_set(crate::AppSystems::Update),
             handle_score_events.in_set(crate::AppSystems::Update),
-            handle_chain_destruction_events.in_set(crate::AppSystems::Update), // Add this
+            handle_chain_destruction_events.in_set(crate::AppSystems::Update),
             update_score_display.in_set(crate::AppSystems::Update),
+            update_individual_player_scores.in_set(crate::AppSystems::Update), // Add this
+            update_team_stats_display.in_set(crate::AppSystems::Update),       // Add this
             update_timer_display.in_set(crate::AppSystems::Update),
         )
             .run_if(in_state(crate::screens::Screen::Gameplay))

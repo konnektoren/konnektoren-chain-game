@@ -174,3 +174,7 @@ pub enum PlayerVisualEventType {
     Streak(u32),
     Boost { duration: f32, intensity: f32 },
 }
+
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct PlayerIndex(pub usize);

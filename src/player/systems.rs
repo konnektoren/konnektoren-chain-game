@@ -73,8 +73,9 @@ pub fn spawn_player(
                 PlayerStats::default(),
                 PlayerVisual,
                 Transform::from_translation(Vec3::new(world_pos.x, world_pos.y, 2.0)),
-                spawn_pos, // This moves spawn_pos
+                spawn_pos,
                 StateScoped(Screen::Gameplay),
+                PlayerIndex(player_index), // ADD THIS LINE - this is the crucial missing component!
             ))
             .id();
 
@@ -139,8 +140,8 @@ pub fn spawn_player(
         let spawn_y = (world_pos.y / grid_map.cell_size + grid_map.height as f32 / 2.0) as usize;
 
         info!(
-            "Spawned {} at position ({}, {}) with color {:?}",
-            player_settings.name, spawn_x, spawn_y, player_settings.color
+            "Spawned {} at position ({}, {}) with color {:?} and PlayerIndex({})",
+            player_settings.name, spawn_x, spawn_y, player_settings.color, player_index
         );
     }
 }

@@ -312,17 +312,6 @@ pub fn assign_gamepads_to_players(
                     }
                 }
             }
-
-            info!(
-                "Assigned input devices to player {}: primary={}, secondary={:?}",
-                player_id + 1,
-                player_settings.input.primary_input.name(),
-                player_settings
-                    .input
-                    .secondary_input
-                    .as_ref()
-                    .map(|d| d.name())
-            );
         }
     }
 }
