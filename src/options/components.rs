@@ -37,6 +37,7 @@ impl OptionCollectible {
 pub struct OptionSpawnTimer {
     pub timer: Timer,
     pub options_per_type: usize,
+    pub total_target_options: usize, // Add this field
     pub option_lifetime: f32,
 }
 
@@ -45,8 +46,35 @@ impl Default for OptionSpawnTimer {
         Self {
             timer: Timer::from_seconds(super::OPTION_SPAWN_INTERVAL, TimerMode::Repeating),
             options_per_type: super::OPTIONS_PER_TYPE,
+            total_target_options: 10, // Default target
             option_lifetime: super::OPTION_LIFETIME,
         }
+    }
+}
+
+impl OptionSpawnTimer {
+    /// Calculate how many options should be on the map based on map size
+    pub fn calculate_target_options(
+        &mut self,
+        map_width: usize,
+        map_height: usize,
+        option_types: usize,
+    ) {
+        let map_area = map_width * map_height;
+
+        // Scale options based on map area
+        // For 25x30 (750 cells) = 10 options
+        // This gives us roughly 1 option per 75 cells
+        let base_density = 75.0; // cells per option
+        self.total_target_options = ((map_area as f32 / base_density) as usize).max(4); // Minimum 4 options
+
+        // Distribute evenly across option types
+        self.options_per_type = (self.total_target_options / option_types.max(1)).max(1);
+
+        info!(
+            "Map {}x{} (area: {}) -> Target: {} total options, {} per type",
+            map_width, map_height, map_area, self.total_target_options, self.options_per_type
+        );
     }
 }
 

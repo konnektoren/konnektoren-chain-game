@@ -40,11 +40,13 @@ pub fn setup_gameplay_camera(
 
     info!("Gameplay camera spawned with bounds: {:?}", camera_bounds);
 
-    let mut camera_controller = CameraController::default();
-    camera_controller.target_zoom = super::DEFAULT_CAMERA_ZOOM;
-    camera_controller.follow_speed = super::DEFAULT_CAMERA_SPEED;
-    camera_controller.zoom_speed = 2.0;
-    camera_controller.deadzone_radius = super::CAMERA_DEADZONE;
+    let camera_controller = CameraController {
+        target_zoom: super::DEFAULT_CAMERA_ZOOM,
+        follow_speed: super::DEFAULT_CAMERA_SPEED,
+        zoom_speed: 2.0,
+        deadzone_radius: super::CAMERA_DEADZONE,
+        ..Default::default()
+    };
 
     // Spawn camera with the correct modern Bevy components
     commands.spawn((
@@ -131,14 +133,10 @@ pub fn update_camera_targets(
                     // So we need to INVERT the scale for Transform
                     let target_zoom = if calculated_scale < 1.0 {
                         // Players are spreading out, zoom out (increase transform scale)
-                        (1.0 / calculated_scale)
-                            .max(1.0) // Don't go below 1.0 for zoom out
-                            .min(1.0 / super::MIN_CAMERA_ZOOM) // Respect max zoom out
+                        (1.0 / calculated_scale).clamp(1.0, 1.0 / super::MIN_CAMERA_ZOOM)
                     } else {
                         // Players are together, can zoom in (decrease transform scale)
-                        calculated_scale
-                            .max(super::MIN_CAMERA_ZOOM)
-                            .min(super::MAX_CAMERA_ZOOM)
+                        calculated_scale.clamp(super::MIN_CAMERA_ZOOM, super::MAX_CAMERA_ZOOM)
                     };
 
                     camera_controller.target_zoom = target_zoom;

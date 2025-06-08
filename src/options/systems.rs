@@ -119,6 +119,104 @@ fn spawn_option_collectible(
     ));
 }
 
+/// System to spawn option collectibles on the map
+pub fn spawn_option_collectibles(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut spawn_timer: ResMut<OptionSpawnTimer>,
+    question_system: Option<Res<QuestionSystem>>,
+    grid_map: Option<Res<GridMap>>,
+    existing_options: Query<(&OptionType, &GridPosition), With<OptionCollectible>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    spawn_timer.timer.tick(time.delta());
+
+    if !spawn_timer.timer.just_finished() {
+        return;
+    }
+
+    let Some(question_system) = question_system else {
+        return;
+    };
+
+    let Some(grid_map) = grid_map else {
+        return;
+    };
+
+    let Some(current_question) = question_system.get_current_question() else {
+        return;
+    };
+
+    let options = question_system.get_current_options();
+    let current_time = time.elapsed_secs();
+
+    // Count existing options by type and total
+    let mut option_counts: HashMap<usize, usize> = HashMap::new();
+    let mut occupied_positions: std::collections::HashSet<(usize, usize)> =
+        std::collections::HashSet::new();
+
+    for (option_type, grid_pos) in &existing_options {
+        *option_counts.entry(option_type.option_id).or_insert(0) += 1;
+        occupied_positions.insert((grid_pos.x, grid_pos.y));
+    }
+
+    let total_existing = existing_options.iter().count();
+
+    // Don't spawn if we already have enough options total
+    if total_existing >= spawn_timer.total_target_options {
+        return;
+    }
+
+    info!(
+        "Spawning options: {}/{} exist, target: {} total, {} per type",
+        total_existing,
+        spawn_timer.total_target_options,
+        spawn_timer.total_target_options,
+        spawn_timer.options_per_type
+    );
+
+    // For each option type, ensure we have the right number spawned
+    for option in options {
+        let existing_count = option_counts.get(&option.id).copied().unwrap_or(0);
+        let is_correct = option.id == current_question.option;
+
+        // Check if we should spawn more of this type
+        // Also check that we don't exceed the total target
+        if existing_count < spawn_timer.options_per_type
+            && total_existing < spawn_timer.total_target_options
+        {
+            let spawn_count = (spawn_timer.options_per_type - existing_count)
+                .min(spawn_timer.total_target_options - total_existing);
+
+            for _ in 0..spawn_count {
+                if let Some(spawn_pos) = find_empty_spawn_position(&grid_map, &occupied_positions) {
+                    spawn_option_collectible(
+                        &mut commands,
+                        option.id,
+                        option.name.clone(),
+                        is_correct,
+                        spawn_pos.clone(),
+                        &grid_map,
+                        current_time,
+                        spawn_timer.option_lifetime,
+                        &mut meshes,
+                        &mut materials,
+                    );
+
+                    // Mark this position as occupied for subsequent spawns
+                    occupied_positions.insert((spawn_pos.x, spawn_pos.y));
+
+                    info!(
+                        "Spawned option '{}' at ({}, {})",
+                        option.name, spawn_pos.x, spawn_pos.y
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// System to animate option collectibles with enhanced light effects
 pub fn animate_option_collectibles(
     time: Res<Time>,
@@ -309,76 +407,6 @@ pub fn enhance_correct_answer_effects(
     }
 }
 
-/// System to spawn option collectibles on the map
-pub fn spawn_option_collectibles(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut spawn_timer: ResMut<OptionSpawnTimer>,
-    question_system: Option<Res<QuestionSystem>>,
-    grid_map: Option<Res<GridMap>>,
-    existing_options: Query<(&OptionType, &GridPosition), With<OptionCollectible>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
-    spawn_timer.timer.tick(time.delta());
-
-    if !spawn_timer.timer.just_finished() {
-        return;
-    }
-
-    let Some(question_system) = question_system else {
-        return;
-    };
-
-    let Some(grid_map) = grid_map else {
-        return;
-    };
-
-    let Some(current_question) = question_system.get_current_question() else {
-        return;
-    };
-
-    let options = question_system.get_current_options();
-    let current_time = time.elapsed_secs();
-
-    // Count existing options by type
-    let mut option_counts: HashMap<usize, usize> = HashMap::new();
-    let mut occupied_positions: std::collections::HashSet<(usize, usize)> =
-        std::collections::HashSet::new();
-
-    for (option_type, grid_pos) in &existing_options {
-        *option_counts.entry(option_type.option_id).or_insert(0) += 1;
-        occupied_positions.insert((grid_pos.x, grid_pos.y));
-    }
-
-    // For each option type, ensure we have the right number spawned
-    for option in options {
-        let existing_count = option_counts.get(&option.id).copied().unwrap_or(0);
-        let is_correct = option.id == current_question.option;
-
-        // Spawn options up to the limit
-        for _ in existing_count..spawn_timer.options_per_type {
-            if let Some(spawn_pos) = find_empty_spawn_position(&grid_map, &occupied_positions) {
-                spawn_option_collectible(
-                    &mut commands,
-                    option.id,
-                    option.name.clone(),
-                    is_correct,
-                    spawn_pos.clone(),
-                    &grid_map,
-                    current_time,
-                    spawn_timer.option_lifetime,
-                    &mut meshes,
-                    &mut materials,
-                );
-
-                // Mark this position as occupied for subsequent spawns
-                occupied_positions.insert((spawn_pos.x, spawn_pos.y));
-            }
-        }
-    }
-}
-
 /// Find an empty position to spawn an option
 fn find_empty_spawn_position(
     grid_map: &GridMap,
@@ -455,4 +483,27 @@ pub fn fade_expiring_options(
             }
         }
     }
+}
+
+/// System to update option spawn settings based on map size
+pub fn update_option_spawn_settings(
+    mut spawn_timer: ResMut<OptionSpawnTimer>,
+    grid_map: Option<Res<GridMap>>,
+    question_system: Option<Res<QuestionSystem>>,
+) {
+    let Some(grid_map) = grid_map else {
+        return;
+    };
+
+    let Some(question_system) = question_system else {
+        return;
+    };
+
+    // Only update when map or question system changes
+    if !grid_map.is_changed() && !question_system.is_changed() {
+        return;
+    }
+
+    let option_types = question_system.get_current_options().len();
+    spawn_timer.calculate_target_options(grid_map.width, grid_map.height, option_types);
 }

@@ -20,6 +20,7 @@ pub(super) fn plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
+            update_option_spawn_settings,
             spawn_option_collectibles,
             cleanup_expired_options,
             clear_options_on_question_change,
