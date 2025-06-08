@@ -164,3 +164,15 @@ pub struct PlayerStatsDisplay {
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct TeamStatsDisplay;
+
+/// Component for options display UI
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct OptionsDisplay;
+
+/// Component for individual option display UI
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct OptionItemDisplay {
+    pub option_id: usize,
+}

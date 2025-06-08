@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 mod components;
-mod systems;
+pub mod systems;
 
 pub use components::*;
 use systems::*;
@@ -15,6 +15,8 @@ pub(super) fn plugin(app: &mut App) {
     app.register_type::<PlayerScoreDisplay>();
     app.register_type::<PlayerStatsDisplay>();
     app.register_type::<TeamStatsDisplay>();
+    app.register_type::<OptionsDisplay>();
+    app.register_type::<OptionItemDisplay>();
 
     // Register events
     app.add_event::<ScoreUpdateEvent>();
@@ -37,9 +39,10 @@ pub(super) fn plugin(app: &mut App) {
             handle_score_events.in_set(crate::AppSystems::Update),
             handle_chain_destruction_events.in_set(crate::AppSystems::Update),
             update_score_display.in_set(crate::AppSystems::Update),
-            update_individual_player_scores.in_set(crate::AppSystems::Update), // Add this
-            update_team_stats_display.in_set(crate::AppSystems::Update),       // Add this
+            update_individual_player_scores.in_set(crate::AppSystems::Update),
+            update_team_stats_display.in_set(crate::AppSystems::Update),
             update_timer_display.in_set(crate::AppSystems::Update),
+            update_options_display.in_set(crate::AppSystems::Update),
         )
             .run_if(in_state(crate::screens::Screen::Gameplay))
             .in_set(crate::PausableSystems),

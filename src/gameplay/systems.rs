@@ -83,10 +83,16 @@ pub fn setup_gameplay_ui(mut commands: Commands, game_settings: Res<GameSettings
         ))
         .id();
 
+    // Options display panel
+    let options_panel = spawn_options_panel(&mut commands);
+
     // Set up parent-child relationships
-    commands
-        .entity(ui_root)
-        .add_children(&[timer_entity, scores_container, team_stats]);
+    commands.entity(ui_root).add_children(&[
+        timer_entity,
+        scores_container,
+        team_stats,
+        options_panel,
+    ]);
     commands
         .entity(scores_container)
         .add_children(&player_panels);
@@ -644,4 +650,241 @@ pub fn handle_chain_destruction_events(
             );
         }
     }
+}
+
+/// System to update options display in the HUD
+pub fn update_options_display(
+    question_system: Option<Res<crate::question::QuestionSystem>>,
+    options_panel_query: Query<&Children, With<OptionsDisplay>>,
+    mut commands: Commands,
+    container_query: Query<(Entity, &Children, &Name)>,
+    existing_options: Query<(Entity, &OptionItemDisplay)>,
+) {
+    let Some(question_system) = question_system else {
+        info!("No question system found");
+        return;
+    };
+
+    let Some(current_question) = question_system.get_current_question() else {
+        info!("No current question available");
+        return;
+    };
+
+    let options = question_system.get_current_options();
+    info!("Found {} options to display", options.len());
+
+    // Find the options panel
+    let Ok(panel_children) = options_panel_query.single() else {
+        info!("Options panel not found");
+        return;
+    };
+
+    info!("Options panel found with {} children", panel_children.len());
+
+    // Find the options container
+    let mut options_container = None;
+    for child in panel_children.iter() {
+        if let Ok((entity, _, name)) = container_query.get(child) {
+            info!("Found child: {}", name.as_str());
+            if name.as_str() == "Options Container" {
+                options_container = Some(entity);
+                break;
+            }
+        }
+    }
+
+    let Some(container_entity) = options_container else {
+        info!("Options container not found in panel children");
+        return;
+    };
+
+    info!("Found options container: {:?}", container_entity);
+
+    // Clear existing option displays
+    let existing_count = existing_options.iter().count();
+    for (entity, _) in &existing_options {
+        commands.entity(entity).despawn();
+    }
+    info!("Cleared {} existing option displays", existing_count);
+
+    // Create new option displays
+    for (index, option) in options.iter().enumerate() {
+        info!(
+            "Creating option display for: {} (id: {})",
+            option.name, option.id
+        );
+
+        let is_correct = option.id == current_question.option;
+
+        // Choose color based on option ID (same as the collectibles)
+        let base_colors = [
+            Color::srgb(0.3, 0.5, 0.8), // Blue
+            Color::srgb(0.8, 0.5, 0.3), // Orange
+            Color::srgb(0.5, 0.8, 0.3), // Green
+            Color::srgb(0.8, 0.3, 0.5), // Pink
+            Color::srgb(0.5, 0.3, 0.8), // Purple
+        ];
+        let color = base_colors[option.id % base_colors.len()];
+
+        // Make correct answers brighter
+        let display_color = if is_correct {
+            Color::srgb(
+                (color.to_srgba().red * 1.3).min(1.0),
+                (color.to_srgba().green * 1.3).min(1.0),
+                (color.to_srgba().blue * 1.3).min(1.0),
+            )
+        } else {
+            color
+        };
+
+        // Create the main option container
+        let option_entity = commands
+            .spawn((
+                Name::new(format!("Option Display: {}", option.name)),
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    padding: UiRect::all(Val::Px(5.0)),
+                    border: UiRect::all(Val::Px(if is_correct { 2.0 } else { 1.0 })),
+                    column_gap: Val::Px(8.0),
+                    min_height: Val::Px(24.0),
+                    width: Val::Percent(100.0),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(
+                    display_color.to_srgba().red * 0.3,
+                    display_color.to_srgba().green * 0.3,
+                    display_color.to_srgba().blue * 0.3,
+                    0.6,
+                )),
+                BorderColor(if is_correct {
+                    Color::srgb(1.0, 0.9, 0.3) // Golden border for correct answer
+                } else {
+                    display_color
+                }),
+                BorderRadius::all(Val::Px(3.0)),
+                OptionItemDisplay {
+                    option_id: option.id,
+                },
+            ))
+            .id();
+
+        // Create color indicator circle
+        let color_indicator = commands
+            .spawn((
+                Name::new("Option Color"),
+                Node {
+                    width: Val::Px(16.0),
+                    height: Val::Px(16.0),
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+                BackgroundColor(display_color),
+                BorderRadius::all(Val::Px(8.0)),
+            ))
+            .id();
+
+        // Create option text
+        let option_text = commands
+            .spawn((
+                Name::new("Option Text"),
+                Text(option.name.clone()),
+                TextFont {
+                    font_size: 12.0,
+                    ..default()
+                },
+                TextColor(if is_correct {
+                    Color::srgb(1.0, 0.9, 0.3) // Golden text for correct answer
+                } else {
+                    Color::WHITE
+                }),
+                Node {
+                    flex_grow: 1.0,
+                    ..default()
+                },
+            ))
+            .id();
+
+        // Create correct answer indicator if needed
+        let mut children = vec![color_indicator, option_text];
+
+        if is_correct {
+            let correct_indicator = commands
+                .spawn((
+                    Name::new("Correct Indicator"),
+                    Text("✓".to_string()),
+                    TextFont {
+                        font_size: 14.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgb(1.0, 0.9, 0.3)),
+                ))
+                .id();
+            children.push(correct_indicator);
+        }
+
+        // Set up parent-child relationships
+        commands.entity(option_entity).add_children(&children);
+        commands.entity(container_entity).add_child(option_entity);
+
+        info!("Created option display {} for '{}'", index, option.name);
+    }
+
+    info!("Updated options display with {} options", options.len());
+}
+
+fn spawn_options_panel(commands: &mut Commands) -> Entity {
+    // Create options header
+    let options_header = commands
+        .spawn((
+            Name::new("Options Header"),
+            Text("Available Options:".to_string()),
+            TextFont {
+                font_size: 14.0,
+                ..default()
+            },
+            TextColor(Color::srgb(0.9, 0.9, 0.9)),
+        ))
+        .id();
+
+    // Create options container
+    let options_container = commands
+        .spawn((
+            Name::new("Options Container"),
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(3.0),
+                align_items: AlignItems::Stretch,
+                ..default()
+            },
+        ))
+        .id();
+
+    // Create the main options panel
+    let panel = commands
+        .spawn((
+            Name::new("Options Panel"),
+            Node {
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(10.0)),
+                margin: UiRect::top(Val::Px(10.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                row_gap: Val::Px(5.0),
+                align_items: AlignItems::Stretch,
+                width: Val::Percent(100.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.1, 0.1, 0.2, 0.7)),
+            BorderColor(Color::srgb(0.3, 0.3, 0.4)),
+            BorderRadius::all(Val::Px(5.0)),
+            OptionsDisplay,
+        ))
+        .id();
+
+    // Set up parent-child relationships
+    commands
+        .entity(panel)
+        .add_children(&[options_header, options_container]);
+
+    panel
 }
