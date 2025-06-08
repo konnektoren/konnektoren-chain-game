@@ -13,6 +13,7 @@ pub(super) fn plugin(app: &mut App) {
     app.register_type::<FlyingToChain>();
     app.register_type::<ChainReaction>();
     app.register_type::<ChainReactionState>();
+    app.register_type::<PlayerChainSegment>();
 
     app.add_event::<ChainExtendEvent>();
     app.add_event::<ChainReactionEvent>();

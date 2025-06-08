@@ -6,18 +6,23 @@ use crate::{
 };
 use bevy::prelude::*;
 
+// Track which player a flying object belongs to
+#[derive(Component)]
+pub struct FlyingToPlayer(pub Entity);
+
 /// System to set up the player chain when entering gameplay
 pub fn setup_player_chain(mut commands: Commands, player_query: Query<Entity, With<Player>>) {
     info!("Setting up player chain system...");
 
     let mut player_count = 0;
     for player_entity in &player_query {
-        commands
-            .entity(player_entity)
-            .insert(PlayerChain::default());
+        commands.entity(player_entity).insert((
+            PlayerChain::default(),
+            MovementTrail::default(), // Add MovementTrail as component instead of resource
+        ));
         player_count += 1;
         info!(
-            "Added PlayerChain component to player entity: {:?}",
+            "Added PlayerChain and MovementTrail components to player entity: {:?}",
             player_entity
         );
     }
@@ -26,8 +31,6 @@ pub fn setup_player_chain(mut commands: Commands, player_query: Query<Entity, Wi
         warn!("No players found when setting up chain system!");
     }
 
-    // Initialize movement trail resource
-    commands.init_resource::<MovementTrail>();
     info!(
         "Player chain system initialized with {} players",
         player_count
@@ -38,12 +41,12 @@ pub fn setup_player_chain(mut commands: Commands, player_query: Query<Entity, Wi
 pub fn update_flying_objects(
     mut commands: Commands,
     time: Res<Time>,
-    mut flying_query: Query<(Entity, &mut Transform, &mut FlyingToChain)>,
-    mut player_chain_query: Query<&mut PlayerChain>,
+    mut flying_query: Query<(Entity, &mut Transform, &mut FlyingToChain, &FlyingToPlayer)>,
+    mut player_query: Query<&mut PlayerChain, With<Player>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    for (entity, mut transform, mut flying) in &mut flying_query {
+    for (entity, mut transform, mut flying, flying_to_player) in &mut flying_query {
         flying.flight_timer.tick(time.delta());
 
         // Update position along the flight path
@@ -53,21 +56,24 @@ pub fn update_flying_objects(
 
         // Scale effect during flight
         let t = flying.flight_timer.fraction();
-        let scale = 1.0 + (t * (1.0 - t) * 4.0) * 0.3; // Slight scale up in the middle
+        let scale = 1.0 + (t * (1.0 - t) * 4.0) * 0.3;
         transform.scale = Vec3::splat(scale);
 
         // Check if flight is complete
         if flying.flight_timer.finished() {
-            // Convert to chain segment
-            create_chain_segment(
-                &mut commands,
-                transform.translation.xy(),
-                flying.option_text.clone(),
-                flying.option_color,
-                &mut player_chain_query,
-                &mut meshes,
-                &mut materials,
-            );
+            // Convert to chain segment for the specific player
+            if let Ok(mut player_chain) = player_query.get_mut(flying_to_player.0) {
+                create_chain_segment_for_player(
+                    &mut commands,
+                    flying_to_player.0,
+                    transform.translation.xy(),
+                    flying.option_text.clone(),
+                    flying.option_color,
+                    &mut player_chain,
+                    &mut meshes,
+                    &mut materials,
+                );
+            }
 
             // Remove the flying object
             commands.entity(entity).despawn();
@@ -75,76 +81,74 @@ pub fn update_flying_objects(
     }
 }
 
-/// Helper function to create a chain segment
-fn create_chain_segment(
+// Create chain segment for specific player
+fn create_chain_segment_for_player(
     commands: &mut Commands,
+    player_entity: Entity,
     position: Vec2,
     option_text: String,
     color: Color,
-    player_chain_query: &mut Query<&mut PlayerChain>,
+    player_chain: &mut PlayerChain,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
 ) {
-    // Find the player with a chain (should be only one)
-    if let Some(mut player_chain) = player_chain_query.iter_mut().next() {
-        let segment_index = player_chain.segments.len();
+    let segment_index = player_chain.segments.len();
 
-        // Check if we've reached max segments
-        if segment_index >= player_chain.max_segments {
-            // Remove the oldest segment
-            if let Some(oldest_segment) = player_chain.segments.first() {
-                commands.entity(*oldest_segment).despawn();
-                player_chain.segments.remove(0);
-            }
+    // Check if we've reached max segments
+    if segment_index >= player_chain.max_segments {
+        // Remove the oldest segment
+        if let Some(oldest_segment) = player_chain.segments.first() {
+            commands.entity(*oldest_segment).despawn();
+            player_chain.segments.remove(0);
         }
-
-        let mesh = meshes.add(Circle::new(super::CHAIN_SEGMENT_SIZE));
-        let material = materials.add(ColorMaterial::from(color));
-
-        let segment_entity = commands
-            .spawn((
-                Name::new(format!("Chain Segment: {}", option_text)),
-                ChainSegment::new(segment_index, option_text.clone(), color),
-                Mesh2d(mesh),
-                MeshMaterial2d(material),
-                Transform::from_translation(Vec3::new(position.x, position.y, 1.5)),
-                StateScoped(Screen::Gameplay),
-                children![
-                    // Text label for the segment - centered inside the ball
-                    (
-                        Name::new("Chain Segment Text"),
-                        Text2d::new(option_text.clone()),
-                        TextFont {
-                            font_size: 10.0, // Slightly larger font
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)), // Centered at (0,0)
-                    )
-                ],
-            ))
-            .id();
-
-        player_chain.segments.push(segment_entity);
-        info!(
-            "Created chain segment {} with text: {}",
-            segment_index, option_text
-        );
     }
+
+    let mesh = meshes.add(Circle::new(super::CHAIN_SEGMENT_SIZE));
+    let material = materials.add(ColorMaterial::from(color));
+
+    let segment_entity = commands
+        .spawn((
+            Name::new(format!(
+                "Chain Segment: {} (Player {:?})",
+                option_text, player_entity
+            )),
+            ChainSegment::new(segment_index, option_text.clone(), color),
+            PlayerChainSegment(player_entity), // Add this to track which player owns this segment
+            Mesh2d(mesh),
+            MeshMaterial2d(material),
+            Transform::from_translation(Vec3::new(position.x, position.y, 1.5)),
+            StateScoped(Screen::Gameplay),
+            children![(
+                Name::new("Chain Segment Text"),
+                Text2d::new(option_text.clone()),
+                TextFont {
+                    font_size: 10.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
+            )],
+        ))
+        .id();
+
+    player_chain.segments.push(segment_entity);
+    info!(
+        "Created chain segment {} with text: {} for player {:?}",
+        segment_index, option_text, player_entity
+    );
 }
 
 /// System to update chain segment positions based on the movement trail
 pub fn update_chain_positions(
-    movement_trail: Res<MovementTrail>,
     grid_map: Option<Res<GridMap>>,
-    player_chain_query: Query<&PlayerChain>,
+    mut player_query: Query<(Entity, &PlayerChain, &MovementTrail), With<Player>>,
     mut segment_query: Query<(&ChainSegment, &mut Transform), Without<ChainReaction>>,
 ) {
     let Some(grid_map) = grid_map else {
         return;
     };
 
-    for player_chain in &player_chain_query {
+    for (_player_entity, player_chain, movement_trail) in &mut player_query {
         for &segment_entity in &player_chain.segments {
             if let Ok((segment, mut transform)) = segment_query.get_mut(segment_entity) {
                 let distance = (segment.segment_index + 1) as f32 * super::CHAIN_SEGMENT_SPACING;
@@ -156,16 +160,13 @@ pub fn update_chain_positions(
                         grid_map.world_height(),
                     )
                 {
-                    // Smooth movement to target position
                     let current_pos = transform.translation.xy();
-
-                    // Calculate the shortest path considering wraparound
                     let new_pos = calculate_shortest_movement(
                         current_pos,
                         target_position,
                         grid_map.half_width(),
                         grid_map.half_height(),
-                        0.15, // lerp factor
+                        0.15,
                     );
 
                     transform.translation.x = new_pos.x;
@@ -312,16 +313,15 @@ pub fn handle_chain_extend_events(
 pub fn create_flying_to_chain_objects(
     mut commands: Commands,
     mut chain_events: EventReader<ChainExtendEvent>,
-    player_chain_query: Query<&PlayerChain>,
-    movement_trail: Res<MovementTrail>,
+    player_query: Query<(&PlayerChain, &MovementTrail), With<Player>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     for event in chain_events.read() {
         info!("Processing chain extend event for: {}", event.option_text);
 
-        if let Ok(player_chain) = player_chain_query.get(event.player_entity) {
-            // Calculate where the new segment should go
+        if let Ok((player_chain, movement_trail)) = player_query.get(event.player_entity) {
+            // Calculate where the new segment should go for THIS player
             let target_distance =
                 (player_chain.segments.len() + 1) as f32 * super::CHAIN_SEGMENT_SPACING;
             let target_position = movement_trail
@@ -329,8 +329,8 @@ pub fn create_flying_to_chain_objects(
                 .unwrap_or(event.collect_position);
 
             info!(
-                "Target position for chain segment: {:?}, distance: {}",
-                target_position, target_distance
+                "Target position for chain segment on player {:?}: {:?}, distance: {}",
+                event.player_entity, target_position, target_distance
             );
 
             // Create the flying object
@@ -352,20 +352,18 @@ pub fn create_flying_to_chain_objects(
                     event.option_text.clone(),
                     event.option_color,
                 ),
+                FlyingToPlayer(event.player_entity), // Add this component to track which player
                 StateScoped(Screen::Gameplay),
-                children![
-                    // Text label for the flying object - centered inside
-                    (
-                        Name::new("Flying Object Text"),
-                        Text2d::new(event.option_text.clone()),
-                        TextFont {
-                            font_size: 10.0,
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)), // Centered
-                    )
-                ],
+                children![(
+                    Name::new("Flying Object Text"),
+                    Text2d::new(event.option_text.clone()),
+                    TextFont {
+                        font_size: 10.0,
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                    Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
+                )],
             ));
 
             info!("Started fly-to-chain animation for: {}", event.option_text);
@@ -381,58 +379,69 @@ pub fn create_flying_to_chain_objects(
 /// System to track player movement and build the trail
 pub fn track_player_movement(
     time: Res<Time>,
-    mut movement_trail: ResMut<MovementTrail>,
-    player_query: Query<&Transform, With<Player>>,
+    mut player_query: Query<(&Transform, &mut MovementTrail), With<Player>>,
 ) {
-    movement_trail.sample_timer.tick(time.delta());
+    for (transform, mut movement_trail) in &mut player_query {
+        movement_trail.sample_timer.tick(time.delta());
 
-    if movement_trail.sample_timer.just_finished() {
-        for transform in &player_query {
+        if movement_trail.sample_timer.just_finished() {
             let position = transform.translation.xy();
             movement_trail.add_position(position);
         }
     }
 }
 
-/// System to detect when player collides with their own chain
+// Update the collision detection system
 pub fn detect_player_chain_collision(
     mut reaction_events: EventWriter<ChainReactionEvent>,
     player_query: Query<(Entity, &Transform, &PlayerChain), With<Player>>,
-    segment_query: Query<(&ChainSegment, &Transform), (With<ChainSegment>, Without<Player>)>,
+    segment_query: Query<
+        (&ChainSegment, &Transform, &PlayerChainSegment),
+        (With<ChainSegment>, Without<Player>),
+    >,
     reaction_state: Res<ChainReactionState>,
 ) {
-    // Don't detect new collisions if a reaction is already active
-    if reaction_state.is_active {
-        return;
-    }
-
     for (player_entity, player_transform, player_chain) in &player_query {
+        // Check if this player already has an active reaction
+        if reaction_state
+            .active_reactions
+            .iter()
+            .any(|r| r.player_entity == player_entity)
+        {
+            continue;
+        }
+
         let player_pos = player_transform.translation.xy();
 
         for &segment_entity in &player_chain.segments {
-            if let Ok((segment, segment_transform)) = segment_query.get(segment_entity) {
-                // Skip collision detection for the first chain element (index 0)
+            if let Ok((segment, segment_transform, segment_owner)) =
+                segment_query.get(segment_entity)
+            {
+                // Only check collision with this player's own segments
+                if segment_owner.0 != player_entity {
+                    continue;
+                }
+
+                // Skip collision detection for the first chain element
                 if segment.segment_index == 0 {
                     continue;
                 }
 
                 let segment_pos = segment_transform.translation.xy();
                 let distance = player_pos.distance(segment_pos);
-
-                // Check collision (player radius + segment radius)
                 let collision_distance = crate::player::PLAYER_SIZE + super::CHAIN_SEGMENT_SIZE;
 
                 if distance <= collision_distance {
                     info!(
-                        "Player hit chain segment {} at distance {}",
-                        segment.segment_index, distance
+                        "Player {:?} hit their own chain segment {} at distance {}",
+                        player_entity, segment.segment_index, distance
                     );
 
                     reaction_events.write(ChainReactionEvent {
                         player_entity,
                         hit_segment_index: segment.segment_index,
                     });
-                    break; // Only trigger one reaction at a time
+                    break;
                 }
             }
         }
@@ -445,17 +454,18 @@ pub fn handle_chain_reaction_events(
     mut reaction_state: ResMut<ChainReactionState>,
 ) {
     for event in reaction_events.read() {
-        if !reaction_state.is_active {
+        if !reaction_state.is_active()
+            || reaction_state
+                .active_reactions
+                .iter()
+                .all(|r| r.player_entity != event.player_entity)
+        {
             info!(
-                "Starting chain reaction at segment {}",
-                event.hit_segment_index
+                "Starting chain reaction at segment {} for player {:?}",
+                event.hit_segment_index, event.player_entity
             );
 
-            reaction_state.is_active = true;
-            reaction_state.player_entity = Some(event.player_entity);
-            reaction_state.hit_segment_index = Some(event.hit_segment_index);
-            reaction_state.current_spread_distance = 0;
-            reaction_state.reaction_spread_timer.reset();
+            reaction_state.start_reaction(event.player_entity, event.hit_segment_index);
         }
     }
 }
@@ -465,61 +475,87 @@ pub fn update_chain_reaction(
     mut commands: Commands,
     time: Res<Time>,
     mut reaction_state: ResMut<ChainReactionState>,
-    player_chain_query: Query<&PlayerChain>,
-    segment_query: Query<(Entity, &ChainSegment), (With<ChainSegment>, Without<ChainReaction>)>,
+    player_chain_query: Query<(Entity, &PlayerChain), With<Player>>,
+    segment_query: Query<
+        (Entity, &ChainSegment, &PlayerChainSegment),
+        (With<ChainSegment>, Without<ChainReaction>),
+    >,
 ) {
-    if !reaction_state.is_active {
+    if !reaction_state.is_active() {
         return;
     }
 
     reaction_state.reaction_spread_timer.tick(time.delta());
 
     if reaction_state.reaction_spread_timer.just_finished() {
-        let Some(hit_index) = reaction_state.hit_segment_index else {
-            return;
-        };
+        let mut reactions_to_remove = Vec::new();
 
-        let spread_distance = reaction_state.current_spread_distance;
-        let mut segments_to_react = Vec::new();
+        // Extract max_spread_distance before the mutable borrow
+        let max_spread_distance = reaction_state.max_spread_distance;
 
-        // Find segments at the current spread distance
-        for player_chain in &player_chain_query {
-            for &segment_entity in &player_chain.segments {
-                if let Ok((entity, segment)) = segment_query.get(segment_entity) {
-                    let segment_distance_from_hit =
-                        (segment.segment_index as i32 - hit_index as i32).abs();
+        // Process each active reaction
+        for reaction in &mut reaction_state.active_reactions {
+            let hit_index = reaction.hit_segment_index;
+            let spread_distance = reaction.current_spread_distance;
+            let player_entity = reaction.player_entity;
+            let mut segments_to_react = Vec::new();
 
-                    if segment_distance_from_hit == spread_distance {
-                        segments_to_react.push(entity);
+            // Find this player's chain
+            if let Some((_, player_chain)) = player_chain_query
+                .iter()
+                .find(|(entity, _)| *entity == player_entity)
+            {
+                // Find segments at the current spread distance for this specific player
+                for &segment_entity in &player_chain.segments {
+                    if let Ok((entity, segment, segment_owner)) = segment_query.get(segment_entity)
+                    {
+                        // Only affect this player's segments
+                        if segment_owner.0 != player_entity {
+                            continue;
+                        }
+
+                        let segment_distance_from_hit =
+                            (segment.segment_index as i32 - hit_index as i32).abs();
+
+                        if segment_distance_from_hit == spread_distance {
+                            segments_to_react.push(entity);
+                        }
                     }
+                }
+            }
+
+            // Add ChainReaction component to segments that should start reacting
+            for entity in segments_to_react {
+                info!(
+                    "Starting reaction on segment at distance {} from hit for player {:?}",
+                    spread_distance, player_entity
+                );
+                commands
+                    .entity(entity)
+                    .insert(ChainReaction::new(super::REACTION_BALL_DURATION));
+            }
+
+            // Increase spread distance for next iteration
+            reaction.current_spread_distance += 1;
+
+            // Check if this reaction is complete - use the extracted value
+            if reaction.current_spread_distance > max_spread_distance {
+                // Check if any segments are still reacting for this player
+                let player_reacting_segments: Vec<_> = segment_query
+                    .iter()
+                    .filter(|(_, _, segment_owner)| segment_owner.0 == player_entity)
+                    .collect();
+
+                if player_reacting_segments.is_empty() {
+                    info!("Chain reaction complete for player {:?}", player_entity);
+                    reactions_to_remove.push(player_entity);
                 }
             }
         }
 
-        // Add ChainReaction component to segments that should start reacting
-        for entity in segments_to_react {
-            info!(
-                "Starting reaction on segment at distance {} from hit",
-                spread_distance
-            );
-            commands
-                .entity(entity)
-                .insert(ChainReaction::new(super::REACTION_BALL_DURATION));
-        }
-
-        // Increase spread distance for next iteration
-        reaction_state.current_spread_distance += 1;
-
-        // Check if reaction is complete
-        if reaction_state.current_spread_distance > reaction_state.max_spread_distance {
-            // Check if any segments are still reacting
-            let reacting_segments: Vec<_> = segment_query.iter().collect();
-            if reacting_segments.is_empty() {
-                info!("Chain reaction complete");
-                reaction_state.is_active = false;
-                reaction_state.hit_segment_index = None;
-                reaction_state.current_spread_distance = 0;
-            }
+        // Remove completed reactions
+        for player_entity in reactions_to_remove {
+            reaction_state.remove_completed_reaction(player_entity);
         }
     }
 }
@@ -528,13 +564,18 @@ pub fn update_chain_reaction(
 pub fn animate_reacting_segments(
     mut commands: Commands,
     time: Res<Time>,
-    mut reacting_query: Query<(Entity, &mut ChainReaction, &mut Transform, &ChainSegment)>,
-    mut player_chain_query: Query<&mut PlayerChain>,
+    mut reacting_query: Query<(
+        Entity,
+        &mut ChainReaction,
+        &mut Transform,
+        &ChainSegment,
+        &PlayerChainSegment,
+    )>,
+    mut player_chain_query: Query<(Entity, &mut PlayerChain), With<Player>>,
     mut destruction_events: EventWriter<ChainSegmentDestroyedEvent>,
-    mut explosion_events: EventWriter<crate::effects::SpawnExplosionEvent>, // Add this
-    reaction_state: Res<ChainReactionState>,
+    mut explosion_events: EventWriter<crate::effects::SpawnExplosionEvent>,
 ) {
-    for (entity, mut reaction, mut transform, segment) in &mut reacting_query {
+    for (entity, mut reaction, mut transform, segment, segment_owner) in &mut reacting_query {
         reaction.reaction_timer.tick(time.delta());
 
         let progress = reaction.reaction_timer.fraction();
@@ -542,8 +583,8 @@ pub fn animate_reacting_segments(
         match reaction.reaction_phase {
             ReactionPhase::Reacting => {
                 // Pulsing and growing effect
-                let pulse_intensity = 1.0 + progress * 2.0; // Grow up to 3x size
-                let pulse_frequency = 10.0; // Fast pulsing
+                let pulse_intensity = 1.0 + progress * 2.0;
+                let pulse_frequency = 10.0;
                 let pulse =
                     pulse_intensity * (1.0 + (time.elapsed_secs() * pulse_frequency).sin() * 0.3);
 
@@ -564,7 +605,7 @@ pub fn animate_reacting_segments(
             }
             ReactionPhase::Vanishing => {
                 // Shrinking effect
-                let vanish_progress = (progress - 0.6) / 0.4; // Progress within vanishing phase
+                let vanish_progress = (progress - 0.6) / 0.4;
                 let scale = (1.0 - vanish_progress).max(0.0);
                 transform.scale = Vec3::splat(scale);
             }
@@ -574,18 +615,18 @@ pub fn animate_reacting_segments(
         if reaction.reaction_timer.finished() {
             info!("Removing reacted segment {}", segment.segment_index);
 
-            // Fire destruction event for scoring
-            if let Some(player_entity) = reaction_state.player_entity {
-                destruction_events.write(ChainSegmentDestroyedEvent {
-                    player_entity,
-                    segment_index: segment.segment_index,
-                    option_text: segment.option_text.clone(),
-                    points_lost: crate::chain::POINTS_LOST_PER_SEGMENT,
-                });
-            }
+            let player_entity = segment_owner.0;
 
-            // Remove from player chain
-            for mut player_chain in &mut player_chain_query {
+            // Fire destruction event for scoring
+            destruction_events.write(ChainSegmentDestroyedEvent {
+                player_entity,
+                segment_index: segment.segment_index,
+                option_text: segment.option_text.clone(),
+                points_lost: crate::chain::POINTS_LOST_PER_SEGMENT,
+            });
+
+            // Remove from the correct player's chain
+            if let Ok((_, mut player_chain)) = player_chain_query.get_mut(player_entity) {
                 player_chain
                     .segments
                     .retain(|&seg_entity| seg_entity != entity);

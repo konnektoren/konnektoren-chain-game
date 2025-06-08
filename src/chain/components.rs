@@ -40,8 +40,8 @@ impl ChainSegment {
 }
 
 /// Component to track the player's movement trail
-#[derive(Resource, Reflect)]
-#[reflect(Resource)]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
 pub struct MovementTrail {
     pub positions: VecDeque<Vec2>,
     pub sample_timer: Timer,
@@ -53,7 +53,7 @@ impl Default for MovementTrail {
         Self {
             positions: VecDeque::new(),
             sample_timer: Timer::from_seconds(super::MOVEMENT_SAMPLE_RATE, TimerMode::Repeating),
-            max_trail_length: 1000, // Keep plenty of history
+            max_trail_length: 1000,
         }
     }
 }
@@ -313,31 +313,58 @@ pub enum ReactionPhase {
     Vanishing, // Ball is disappearing
 }
 
+#[derive(Reflect, Clone)]
+pub struct PlayerReaction {
+    pub player_entity: Entity,
+    pub hit_segment_index: usize,
+    pub current_spread_distance: i32,
+}
+
 /// Resource to manage the chain reaction state
 #[derive(Resource, Reflect)]
 #[reflect(Resource)]
 pub struct ChainReactionState {
-    pub is_active: bool,
-    pub player_entity: Option<Entity>,
-    pub hit_segment_index: Option<usize>,
+    pub active_reactions: Vec<PlayerReaction>,
     pub reaction_spread_timer: Timer,
-    pub current_spread_distance: i32,
     pub max_spread_distance: i32,
 }
 
 impl Default for ChainReactionState {
     fn default() -> Self {
         Self {
-            is_active: false,
-            player_entity: None,
-            hit_segment_index: None,
+            active_reactions: Vec::new(),
             reaction_spread_timer: Timer::from_seconds(
                 super::REACTION_SPREAD_INTERVAL,
                 TimerMode::Repeating,
             ),
-            current_spread_distance: 0,
-            max_spread_distance: 20, // Maximum spread distance
+            max_spread_distance: 20,
         }
+    }
+}
+
+impl ChainReactionState {
+    pub fn is_active(&self) -> bool {
+        !self.active_reactions.is_empty()
+    }
+
+    pub fn start_reaction(&mut self, player_entity: Entity, hit_segment_index: usize) {
+        // Remove any existing reaction for this player
+        self.active_reactions
+            .retain(|r| r.player_entity != player_entity);
+
+        // Add new reaction
+        self.active_reactions.push(PlayerReaction {
+            player_entity,
+            hit_segment_index,
+            current_spread_distance: 0,
+        });
+
+        self.reaction_spread_timer.reset();
+    }
+
+    pub fn remove_completed_reaction(&mut self, player_entity: Entity) {
+        self.active_reactions
+            .retain(|r| r.player_entity != player_entity);
     }
 }
 
@@ -356,3 +383,8 @@ pub struct ChainSegmentDestroyedEvent {
     pub option_text: String,
     pub points_lost: i32,
 }
+
+/// Component to track which player owns a chain segment
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct PlayerChainSegment(pub Entity);
