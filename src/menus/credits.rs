@@ -50,7 +50,6 @@ fn spawn_credits_menu(mut commands: Commands) {
                     assets(),
                 ],
             ),
-            // Fixed back button at bottom
             (
                 Name::new("Fixed Button Container"),
                 Node {
@@ -153,7 +152,7 @@ fn grid(content: Vec<[&'static str; 2]>) -> impl Bundle {
             row_gap: Px(10.0),
             column_gap: Px(30.0),
             grid_template_columns: RepeatedGridTrack::px(2, 400.0),
-            max_width: Px(850.0), // Ensure grid doesn't get too wide
+            max_width: Px(850.0),
             width: Percent(100.0),
             ..default()
         },

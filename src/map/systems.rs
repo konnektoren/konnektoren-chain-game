@@ -160,7 +160,6 @@ pub fn update_grid_visualization(
     // This system can be expanded later to handle dynamic grid changes
     // For now, it's a placeholder for future particle effects and cell state changes
     if grid_map.is_changed() {
-        // Update visualization if needed
         for mut _transform in &mut grid_query {
             // Future: Update particle effects, cell colors, etc.
         }

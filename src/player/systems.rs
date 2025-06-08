@@ -4,7 +4,7 @@ use crate::{
     map::{GridMap, GridPosition},
     options::{OptionCollectible, OptionType},
     screens::Screen,
-    settings::GameSettings, // Add this import
+    settings::GameSettings,
 };
 use bevy::prelude::*;
 
@@ -138,7 +138,6 @@ pub fn spawn_player(
             .entity(player_entity)
             .add_children(&[core_entity, glow_entity, aura_entity]);
 
-        // Fix: Access spawn_pos values before it was moved, or recreate the position info
         let spawn_x = (world_pos.x / grid_map.cell_size + grid_map.width as f32 / 2.0) as usize;
         let spawn_y = (world_pos.y / grid_map.cell_size + grid_map.height as f32 / 2.0) as usize;
 
@@ -258,7 +257,7 @@ fn handle_map_wraparound(position: Vec2, half_width: f32, half_height: f32) -> V
 pub fn collect_options(
     mut commands: Commands,
     mut event_writer: EventWriter<OptionCollectedEvent>,
-    mut collection_effects: EventWriter<crate::effects::SpawnCollectionEvent>, // Add this
+    mut collection_effects: EventWriter<crate::effects::SpawnCollectionEvent>,
     mut player_query: Query<(Entity, &Transform), With<Player>>,
     option_query: Query<
         (Entity, &Transform, &OptionCollectible, &OptionType),

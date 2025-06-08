@@ -2,7 +2,7 @@ mod credits;
 mod device_selection;
 mod main;
 mod pause;
-mod settings; // Add this
+mod settings;
 
 use bevy::prelude::*;
 
@@ -14,7 +14,7 @@ pub(super) fn plugin(app: &mut App) {
         main::plugin,
         settings::plugin,
         pause::plugin,
-        device_selection::plugin, // Add this
+        device_selection::plugin,
     ));
 }
 

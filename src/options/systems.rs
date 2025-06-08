@@ -271,7 +271,6 @@ pub fn animate_option_collectibles(
         let glow_pulse = 1.0 + (time_factor * 1.5).sin() * 0.3;
         transform.scale = Vec3::splat(glow_pulse);
 
-        // Update glow transparency
         if let Some(material) = materials.get_mut(&material_handle.0) {
             let alpha = 0.2 + (time_factor * 2.0).sin() * 0.1;
             material.color.set_alpha(alpha.max(0.1));
@@ -280,7 +279,6 @@ pub fn animate_option_collectibles(
 
     // Animate pulse rings
     for (mut transform, mut pulse_ring, material_handle) in &mut pulse_query {
-        // Update ring phase
         pulse_ring.ring_phase += time.delta_secs() * 2.0;
         if pulse_ring.ring_phase > std::f32::consts::TAU {
             pulse_ring.ring_phase = 0.0;

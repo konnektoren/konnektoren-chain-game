@@ -37,7 +37,7 @@ impl OptionCollectible {
 pub struct OptionSpawnTimer {
     pub timer: Timer,
     pub options_per_type: usize,
-    pub total_target_options: usize, // Add this field
+    pub total_target_options: usize,
     pub option_lifetime: f32,
 }
 

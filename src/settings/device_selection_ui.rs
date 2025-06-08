@@ -494,7 +494,6 @@ pub fn handle_device_button_clicks(
                 continue;
             }
 
-            // Update both game settings and assignment
             if let Some(player_settings) = game_settings.multiplayer.players.get_mut(player_id) {
                 player_settings.input.primary_input = device.clone();
                 player_settings.input.secondary_input = None;

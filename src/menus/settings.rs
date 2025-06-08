@@ -94,7 +94,6 @@ fn audio_section() -> impl Bundle {
     )
 }
 
-// Add this new widget function:
 fn player_management_widget() -> impl Bundle {
     (
         Name::new("Player Management Widget"),
@@ -121,7 +120,6 @@ fn player_management_widget() -> impl Bundle {
     )
 }
 
-// Update the multiplayer section:
 fn multiplayer_section() -> impl Bundle {
     (
         Name::new("Multiplayer Section"),
@@ -174,7 +172,6 @@ fn multiplayer_section() -> impl Bundle {
     )
 }
 
-// Add these control functions:
 fn add_player(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
     let new_count = (game_settings.multiplayer.player_count + 1).min(MAX_PLAYERS);
     game_settings.multiplayer.set_player_count(new_count);
@@ -187,7 +184,6 @@ fn remove_player(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSetti
     info!("Removed player, new count: {}", new_count);
 }
 
-// Update the multiplayer toggle to be smarter:
 fn toggle_multiplayer(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<GameSettings>) {
     let new_state = !game_settings.multiplayer.enabled;
     game_settings.multiplayer.enable_multiplayer(new_state);
@@ -200,7 +196,6 @@ fn toggle_multiplayer(_: Trigger<Pointer<Click>>, mut game_settings: ResMut<Game
     info!("Multiplayer toggled: {}", game_settings.multiplayer.enabled);
 }
 
-// Rest of the widget functions remain the same...
 fn global_volume_widget() -> impl Bundle {
     (
         Name::new("Global Volume Widget"),
@@ -280,7 +275,6 @@ struct AutoDetectToggle;
 #[reflect(Component)]
 struct DeviceStatusDisplay;
 
-// Update systems
 fn update_global_volume_label(
     global_volume: Res<GlobalVolume>,
     mut label: Single<&mut Text, With<GlobalVolumeLabel>>,

@@ -49,7 +49,6 @@ pub fn update_flying_objects(
     for (entity, mut transform, mut flying, flying_to_player) in &mut flying_query {
         flying.flight_timer.tick(time.delta());
 
-        // Update position along the flight path
         let current_pos = flying.current_position();
         transform.translation.x = current_pos.x;
         transform.translation.y = current_pos.y;
@@ -113,7 +112,7 @@ fn create_chain_segment_for_player(
                 option_text, player_entity
             )),
             ChainSegment::new(segment_index, option_text.clone(), color),
-            PlayerChainSegment(player_entity), // Add this to track which player owns this segment
+            PlayerChainSegment(player_entity),
             Mesh2d(mesh),
             MeshMaterial2d(material),
             Transform::from_translation(Vec3::new(position.x, position.y, 1.5)),
@@ -242,7 +241,6 @@ pub fn animate_chain_segments(
     let time_factor = time.elapsed_secs();
 
     for (mut segment, mut transform) in &mut segment_query {
-        // Update pulse phase
         segment.pulse_phase += time.delta_secs() * 2.0;
 
         // Pulsing scale effect
@@ -352,7 +350,7 @@ pub fn create_flying_to_chain_objects(
                     event.option_text.clone(),
                     event.option_color,
                 ),
-                FlyingToPlayer(event.player_entity), // Add this component to track which player
+                FlyingToPlayer(event.player_entity),
                 StateScoped(Screen::Gameplay),
                 children![(
                     Name::new("Flying Object Text"),
@@ -391,7 +389,6 @@ pub fn track_player_movement(
     }
 }
 
-// Update the collision detection system
 pub fn detect_player_chain_collision(
     mut reaction_events: EventWriter<ChainReactionEvent>,
     player_query: Query<(Entity, &Transform, &PlayerChain), With<Player>>,
