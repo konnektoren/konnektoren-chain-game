@@ -14,7 +14,7 @@ pub(super) fn plugin(app: &mut App) {
     app.register_type::<GridPosition>();
 
     // Initialize map configuration resource
-    app.insert_resource(MapConfig::new(30, 25).with_cell_size(28.0).with_colors(
+    app.insert_resource(MapConfig::new(120, 100).with_cell_size(28.0).with_colors(
         Color::srgb(0.05, 0.05, 0.1),
         Color::srgba(0.2, 0.4, 0.6, 0.6),
     ));

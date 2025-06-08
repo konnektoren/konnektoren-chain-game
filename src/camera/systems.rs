@@ -1,15 +1,13 @@
-use super::components::*;
+use super::{components::*, viewport::ViewportCalculator};
 use crate::{map::GridMap, screens::Screen};
 use bevy::prelude::*;
 
 /// System to set up the title/UI camera
 pub fn setup_title_camera(mut commands: Commands, existing_cameras: Query<Entity, With<Camera2d>>) {
-    // Remove any existing cameras
     for camera_entity in &existing_cameras {
         commands.entity(camera_entity).despawn();
     }
 
-    // Spawn a basic UI camera for title screen
     commands.spawn((
         Name::new("Title Camera"),
         Camera2d,
@@ -26,12 +24,10 @@ pub fn setup_gameplay_camera(
     grid_map: Option<Res<GridMap>>,
     existing_cameras: Query<Entity, With<Camera2d>>,
 ) {
-    // Remove any existing cameras
     for camera_entity in &existing_cameras {
         commands.entity(camera_entity).despawn();
     }
 
-    // Create camera bounds based on map size
     let camera_bounds = if let Some(map) = grid_map.as_ref() {
         CameraBounds::from_map_size(
             map.world_width(),
@@ -43,11 +39,19 @@ pub fn setup_gameplay_camera(
     };
 
     info!("Gameplay camera spawned with bounds: {:?}", camera_bounds);
-    // Spawn the gameplay camera
+
+    let mut camera_controller = CameraController::default();
+    camera_controller.target_zoom = super::DEFAULT_CAMERA_ZOOM;
+    camera_controller.follow_speed = super::DEFAULT_CAMERA_SPEED;
+    camera_controller.zoom_speed = 2.0;
+    camera_controller.deadzone_radius = super::CAMERA_DEADZONE;
+
+    // Spawn camera with the correct modern Bevy components
     commands.spawn((
         Name::new("Gameplay Camera"),
         Camera2d,
-        CameraController::default(),
+        Transform::from_translation(Vec3::new(0.0, 0.0, 999.0)),
+        camera_controller,
         camera_bounds,
         StateScoped(Screen::Gameplay),
     ));
@@ -58,12 +62,10 @@ pub fn setup_loading_camera(
     mut commands: Commands,
     existing_cameras: Query<Entity, With<Camera2d>>,
 ) {
-    // Remove any existing cameras
     for camera_entity in &existing_cameras {
         commands.entity(camera_entity).despawn();
     }
 
-    // Spawn a basic camera for loading screen
     commands.spawn((
         Name::new("Loading Camera"),
         Camera2d,
@@ -74,7 +76,7 @@ pub fn setup_loading_camera(
     info!("Loading camera spawned");
 }
 
-/// System to update camera targets and calculate target position
+/// System to update camera targets using ViewportCalculator for multiple targets or simple follow for single target
 pub fn update_camera_targets(
     mut camera_query: Query<&mut CameraController>,
     target_query: Query<(&Transform, &CameraTarget)>,
@@ -91,120 +93,82 @@ pub fn update_camera_targets(
             continue;
         }
 
-        let target_position = calculate_target_position(&targets, &camera_settings.follow_mode);
-        camera_controller.target_position = target_position;
+        if targets.len() == 1 {
+            // Single player - just follow them
+            camera_controller.target_position = targets[0].0.translation.xy();
+            camera_controller.target_zoom = super::DEFAULT_CAMERA_ZOOM;
+        } else {
+            // Multiple players - use ViewportCalculator to include all
+            let viewport_calculator = ViewportCalculator::new(camera_settings.zoom_margin);
+            let transforms: Vec<&Transform> = targets.iter().map(|(t, _)| *t).collect();
 
-        // Update target zoom for auto-zoom
-        if camera_settings.auto_zoom {
-            camera_controller.target_zoom = calculate_target_zoom(&targets, &camera_settings);
-        }
-    }
-}
+            let base_viewport = Vec2::new(super::BASE_VIEWPORT_WIDTH, super::BASE_VIEWPORT_HEIGHT);
 
-/// Calculate the target position based on follow mode
-fn calculate_target_position(
-    targets: &[(&Transform, &CameraTarget)],
-    follow_mode: &CameraFollowMode,
-) -> Vec2 {
-    if targets.is_empty() {
-        return Vec2::ZERO;
-    }
+            if let Some((_center_pos, calculated_scale)) =
+                viewport_calculator.calculate_from_transforms(&transforms, base_viewport)
+            {
+                // Calculate weighted average position for smooth following
+                let (total_weight, weighted_position) = targets.iter().fold(
+                    (0.0, Vec2::ZERO),
+                    |(total_weight, weighted_pos), (transform, target)| {
+                        (
+                            total_weight + target.weight,
+                            weighted_pos + transform.translation.xy() * target.weight,
+                        )
+                    },
+                );
 
-    match follow_mode {
-        CameraFollowMode::Weighted => {
-            let mut weighted_sum = Vec2::ZERO;
-            let mut total_weight = 0.0;
+                if total_weight > 0.0 {
+                    camera_controller.target_position = weighted_position / total_weight;
+                }
 
-            for (transform, target) in targets {
-                let position = transform.translation.xy();
-                weighted_sum += position * target.weight;
-                total_weight += target.weight;
+                if camera_settings.auto_zoom {
+                    // For Bevy's Transform::scale on cameras:
+                    // - scale > 1.0 = zoomed out (see more)
+                    // - scale < 1.0 = zoomed in (see less)
+
+                    // When calculated_scale < 1.0, we need to zoom out
+                    // So we need to INVERT the scale for Transform
+                    let target_zoom = if calculated_scale < 1.0 {
+                        // Players are spreading out, zoom out (increase transform scale)
+                        (1.0 / calculated_scale)
+                            .max(1.0) // Don't go below 1.0 for zoom out
+                            .min(1.0 / super::MIN_CAMERA_ZOOM) // Respect max zoom out
+                    } else {
+                        // Players are together, can zoom in (decrease transform scale)
+                        calculated_scale
+                            .max(super::MIN_CAMERA_ZOOM)
+                            .min(super::MAX_CAMERA_ZOOM)
+                    };
+
+                    camera_controller.target_zoom = target_zoom;
+                }
             }
-
-            if total_weight > 0.0 {
-                weighted_sum / total_weight
-            } else {
-                targets[0].0.translation.xy()
-            }
-        }
-
-        CameraFollowMode::Priority => targets
-            .iter()
-            .max_by_key(|(_, target)| target.priority)
-            .map(|(transform, _)| transform.translation.xy())
-            .unwrap_or(Vec2::ZERO),
-
-        CameraFollowMode::IncludeAll | CameraFollowMode::Average => {
-            let sum: Vec2 = targets
-                .iter()
-                .map(|(transform, _)| transform.translation.xy())
-                .sum();
-            sum / targets.len() as f32
         }
     }
 }
 
-/// Calculate target zoom to include all targets
-fn calculate_target_zoom(
-    targets: &[(&Transform, &CameraTarget)],
-    settings: &CameraSettings,
-) -> f32 {
-    if targets.len() <= 1 || !settings.auto_zoom {
-        return super::DEFAULT_CAMERA_ZOOM;
-    }
-
-    // Find the bounding box of all targets
-    let positions: Vec<Vec2> = targets
-        .iter()
-        .map(|(transform, _)| transform.translation.xy())
-        .collect();
-
-    let min_x = positions.iter().map(|p| p.x).fold(f32::INFINITY, f32::min);
-    let max_x = positions
-        .iter()
-        .map(|p| p.x)
-        .fold(f32::NEG_INFINITY, f32::max);
-    let min_y = positions.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
-    let max_y = positions
-        .iter()
-        .map(|p| p.y)
-        .fold(f32::NEG_INFINITY, f32::max);
-
-    let width = max_x - min_x + settings.zoom_margin;
-    let height = max_y - min_y + settings.zoom_margin;
-
-    // Calculate zoom to fit the bounding box (simplified)
-    let target_zoom = if width > height {
-        (800.0 / width).min(super::MAX_CAMERA_ZOOM)
-    } else {
-        (600.0 / height).min(super::MAX_CAMERA_ZOOM)
-    };
-
-    target_zoom.max(super::MIN_CAMERA_ZOOM)
-}
-
-/// System to smoothly move camera to target position
+/// System to smoothly move camera to target position and zoom using Transform::scale
 pub fn update_camera_follow(
     time: Res<Time>,
     camera_settings: Res<CameraSettings>,
-    mut camera_query: Query<(&mut Transform, &mut CameraController, &CameraBounds)>,
+    mut camera_query: Query<(&mut Transform, &mut CameraController, &CameraBounds), With<Camera>>,
 ) {
-    for (mut transform, mut controller, bounds) in &mut camera_query {
+    for (mut transform, mut controller, bounds) in camera_query.iter_mut() {
         if !controller.is_following {
             continue;
         }
 
+        // Handle position following
         let current_pos = transform.translation.xy();
         let target_pos = controller.target_position;
         let distance_to_target = current_pos.distance(target_pos);
 
-        // Only move if outside deadzone
         if distance_to_target > controller.deadzone_radius {
             let direction = (target_pos - current_pos).normalize_or_zero();
             let movement_distance = distance_to_target - controller.deadzone_radius;
 
             if camera_settings.smooth_follow {
-                // Smooth following with velocity
                 let target_velocity = direction * movement_distance * controller.follow_speed;
                 controller.current_velocity = controller
                     .current_velocity
@@ -216,7 +180,6 @@ pub fn update_camera_follow(
                 transform.translation.x = clamped_position.x;
                 transform.translation.y = clamped_position.y;
             } else {
-                // Instant movement
                 let new_position = current_pos + direction * movement_distance;
                 let clamped_position = bounds.clamp_position(new_position);
 
@@ -224,18 +187,30 @@ pub fn update_camera_follow(
                 transform.translation.y = clamped_position.y;
             }
         } else {
-            // Within deadzone, reduce velocity
             controller.current_velocity *= 0.9;
         }
 
-        // Handle zoom
-        let current_scale = transform.scale.x;
-        if (current_scale - controller.target_zoom).abs() > 0.01 {
-            let new_scale = current_scale.lerp(
-                controller.target_zoom,
-                time.delta_secs() * controller.zoom_speed,
-            );
-            transform.scale = Vec3::splat(new_scale);
+        // Handle zoom following using Transform::scale
+        let current_zoom = transform.scale.x; // Assuming uniform scale
+        let target_zoom = controller
+            .target_zoom
+            .clamp(super::MIN_CAMERA_ZOOM, super::MAX_CAMERA_ZOOM);
+        let zoom_difference = (current_zoom - target_zoom).abs();
+
+        if zoom_difference > 0.01 {
+            let zoom_speed = controller.zoom_speed;
+            let new_zoom = current_zoom.lerp(target_zoom, time.delta_secs() * zoom_speed);
+            let clamped_zoom = new_zoom.clamp(super::MIN_CAMERA_ZOOM, super::MAX_CAMERA_ZOOM);
+
+            transform.scale = Vec3::splat(clamped_zoom);
+
+            // Debug: show what's happening
+            if zoom_difference > 0.1 {
+                info!(
+                    "Camera zoom: current={:.3}, target={:.3}, new={:.3}",
+                    current_zoom, target_zoom, clamped_zoom
+                );
+            }
         }
     }
 }
@@ -250,7 +225,7 @@ pub fn update_camera_bounds(
         return;
     }
 
-    for mut bounds in &mut camera_query {
+    for mut bounds in camera_query.iter_mut() {
         let new_bounds = CameraBounds::from_map_size(
             grid_map.world_width(),
             grid_map.world_height(),

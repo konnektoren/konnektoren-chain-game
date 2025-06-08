@@ -75,7 +75,7 @@ pub fn spawn_player(
                 Transform::from_translation(Vec3::new(world_pos.x, world_pos.y, 2.0)),
                 spawn_pos,
                 StateScoped(Screen::Gameplay),
-                PlayerIndex(player_index), // ADD THIS LINE - this is the crucial missing component!
+                PlayerIndex(player_index),
             ))
             .id();
 
@@ -94,8 +94,11 @@ pub fn spawn_player(
             },
         ));
 
+        // Configure camera target with appropriate weight and priority
+        let camera_target = crate::camera::CameraTarget { weight: 1.0 };
+
         commands.entity(player_entity).insert((
-            crate::camera::CameraTarget::default(),
+            camera_target,
             Mesh2d(main_mesh),
             MeshMaterial2d(main_material),
         ));
@@ -140,7 +143,7 @@ pub fn spawn_player(
         let spawn_y = (world_pos.y / grid_map.cell_size + grid_map.height as f32 / 2.0) as usize;
 
         info!(
-            "Spawned {} at position ({}, {}) with color {:?} and PlayerIndex({})",
+            "Spawned {} at position ({}, {}) with color {:?} and PlayerIndex({}) - Camera Target enabled",
             player_settings.name, spawn_x, spawn_y, player_settings.color, player_index
         );
     }
