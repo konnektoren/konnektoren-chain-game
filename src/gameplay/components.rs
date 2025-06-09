@@ -123,6 +123,7 @@ impl GameTimer {
 }
 
 /// Events for score updates
+#[allow(dead_code)]
 #[derive(Event)]
 pub struct ScoreUpdateEvent {
     pub player_entity: Entity,
@@ -165,14 +166,19 @@ pub struct PlayerStatsDisplay {
 #[reflect(Component)]
 pub struct TeamStatsDisplay;
 
-/// Component for options display UI
+/// Component for the options/legend display panel
 #[derive(Component, Reflect)]
 #[reflect(Component)]
-pub struct OptionsDisplay;
+pub struct OptionsLegendDisplay;
 
-/// Component for individual option display UI
+/// Component for the container that holds option legend items
 #[derive(Component, Reflect)]
 #[reflect(Component)]
-pub struct OptionItemDisplay {
+pub struct OptionsLegendContainer;
+
+/// Component for individual option legend items
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct OptionLegendItem {
     pub option_id: usize,
 }

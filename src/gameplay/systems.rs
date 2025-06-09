@@ -83,15 +83,15 @@ pub fn setup_gameplay_ui(mut commands: Commands, game_settings: Res<GameSettings
         ))
         .id();
 
-    // Options display panel
-    let options_panel = spawn_options_panel(&mut commands);
+    // Options/Legend display panel
+    let options_legend_panel = spawn_options_legend_panel(&mut commands);
 
     // Set up parent-child relationships
     commands.entity(ui_root).add_children(&[
         timer_entity,
         scores_container,
         team_stats,
-        options_panel,
+        options_legend_panel,
     ]);
     commands
         .entity(scores_container)
@@ -164,6 +164,63 @@ struct PlayerScoreData {
     color: Color,
 }
 
+fn spawn_options_legend_panel(commands: &mut Commands) -> Entity {
+    // Create legend header
+    let options_header = commands
+        .spawn((
+            Name::new("Options Legend Header"),
+            Text("Available Options:".to_string()),
+            TextFont {
+                font_size: 14.0,
+                ..default()
+            },
+            TextColor(Color::srgb(0.9, 0.9, 0.9)),
+        ))
+        .id();
+
+    // Create options legend container
+    let options_container = commands
+        .spawn((
+            Name::new("Options Legend Container"),
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(3.0),
+                align_items: AlignItems::Stretch,
+                ..default()
+            },
+            OptionsLegendContainer,
+        ))
+        .id();
+
+    // Create the main options legend panel
+    let panel = commands
+        .spawn((
+            Name::new("Options Legend Panel"),
+            Node {
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(10.0)),
+                margin: UiRect::top(Val::Px(10.0)),
+                border: UiRect::all(Val::Px(1.0)),
+                row_gap: Val::Px(5.0),
+                align_items: AlignItems::Stretch,
+                width: Val::Percent(100.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.1, 0.1, 0.2, 0.7)),
+            BorderColor(Color::srgb(0.3, 0.3, 0.4)),
+            BorderRadius::all(Val::Px(5.0)),
+            OptionsLegendDisplay,
+        ))
+        .id();
+
+    // Set up parent-child relationships
+    commands
+        .entity(panel)
+        .add_children(&[options_header, options_container]);
+
+    panel
+}
+
 /// System to reset game state when entering gameplay
 pub fn reset_game_state(
     mut gameplay_score: ResMut<GameplayScore>,
@@ -211,54 +268,18 @@ pub fn handle_score_events(
     mut gameplay_score: ResMut<GameplayScore>,
 ) {
     for event in score_events.read() {
-        info!(
-            "Processing score event for player {:?}: correct={}, points={}",
-            event.player_entity, event.is_correct, event.points_awarded
-        );
-
         // Ensure player exists in the score tracking
         if !gameplay_score.players.contains_key(&event.player_entity) {
             gameplay_score.add_player(event.player_entity, "Player".to_string());
-            info!(
-                "Added new player {:?} to score tracking",
-                event.player_entity
-            );
         }
 
         // Update player score
         if let Some(player_score) = gameplay_score.get_player_score_mut(event.player_entity) {
-            let old_score = player_score.total_score;
-            let old_streak = player_score.current_streak;
-            let old_collection_count = player_score.collection_count;
-
             if event.is_correct {
                 player_score.add_correct_answer();
-                info!(
-                    "Player scored! Score: {} -> {}, Streak: {} -> {}, Collections: {} -> {}",
-                    old_score,
-                    player_score.total_score,
-                    old_streak,
-                    player_score.current_streak,
-                    old_collection_count,
-                    player_score.collection_count
-                );
             } else {
                 player_score.add_wrong_answer();
-                info!(
-                    "Player lost points! Score: {} -> {}, Streak reset: {} -> {}, Collections: {} -> {}",
-                    old_score,
-                    player_score.total_score,
-                    old_streak,
-                    player_score.current_streak,
-                    old_collection_count,
-                    player_score.collection_count
-                );
             }
-        } else {
-            error!(
-                "Failed to get mutable player score for entity {:?}",
-                event.player_entity
-            );
         }
     }
 }
@@ -275,20 +296,6 @@ pub fn update_individual_player_scores(
         return;
     }
 
-    // Debug: Print all players and their indices
-    info!("=== Player Index Debug ===");
-    for (entity, player_index) in &player_query {
-        info!("Entity {:?} has PlayerIndex({})", entity, player_index.0);
-        if let Some(score) = gameplay_score.players.get(&entity) {
-            info!(
-                "  - Score: {}, Name: {}",
-                score.total_score, score.player_name
-            );
-        } else {
-            info!("  - No score data found");
-        }
-    }
-
     // Update individual player scores
     for (mut text, score_display) in &mut player_score_query {
         let player_index = score_display.player_index;
@@ -299,35 +306,22 @@ pub fn update_individual_player_scores(
             .find(|(_, idx)| idx.0 == player_index)
             .map(|(entity, _)| entity);
 
-        info!(
-            "Looking for PlayerIndex({}) -> Found entity: {:?}",
-            player_index, player_entity
-        );
-
         if let Some(entity) = player_entity {
             if let Some(player_score) = gameplay_score.players.get(&entity) {
                 if let Some(player_settings) = game_settings.multiplayer.players.get(player_index) {
-                    let new_text =
-                        format!("{}: {}", player_settings.name, player_score.total_score);
-                    info!(
-                        "Updating score display for {}: {}",
-                        player_settings.name, player_score.total_score
-                    );
-                    text.0 = new_text;
+                    text.0 = format!("{}: {}", player_settings.name, player_score.total_score);
                 } else {
                     text.0 = format!("Player {}: {}", player_index + 1, player_score.total_score);
                 }
+            } else if let Some(player_settings) =
+                game_settings.multiplayer.players.get(player_index)
+            {
+                text.0 = format!("{}: 0", player_settings.name);
             } else {
-                info!("No score data for entity {:?}", entity);
-                if let Some(player_settings) = game_settings.multiplayer.players.get(player_index) {
-                    text.0 = format!("{}: 0", player_settings.name);
-                } else {
-                    text.0 = format!("Player {}: 0", player_index + 1);
-                }
+                text.0 = format!("Player {}: 0", player_index + 1);
             }
         } else {
             // Fallback if player entity not found
-            info!("No entity found for PlayerIndex({})", player_index);
             if let Some(player_settings) = game_settings.multiplayer.players.get(player_index) {
                 text.0 = format!("{}: 0", player_settings.name);
             } else {
@@ -355,23 +349,10 @@ pub fn update_individual_player_scores(
                     0.0
                 };
 
-                // Show current streak and best streak
-                let new_text = format!(
+                text.0 = format!(
                     "Current: {} | Best: {} | Accuracy: {:.0}%",
                     player_score.current_streak, player_score.best_streak, accuracy
                 );
-
-                info!(
-                    "Player {} stats - Current: {}, Best: {}, Correct: {}, Total: {}, Accuracy: {:.1}%",
-                    player_index + 1,
-                    player_score.current_streak,
-                    player_score.best_streak,
-                    player_score.correct_answers,
-                    player_score.collection_count,
-                    accuracy
-                );
-
-                text.0 = new_text;
             } else {
                 text.0 = "Current: 0 | Best: 0 | Accuracy: 0%".to_string();
             }
@@ -392,23 +373,6 @@ pub fn update_team_stats_display(
     }
 
     for mut text in &mut team_stats_query {
-        // Debug: Print all players in the score tracking
-        info!(
-            "Team stats update - Players in score tracking: {}",
-            gameplay_score.players.len()
-        );
-        for (entity, player_score) in &gameplay_score.players {
-            info!(
-                "  Player {:?}: {} points, current streak: {}, best streak: {}, {} correct, {} total collections",
-                entity,
-                player_score.total_score,
-                player_score.current_streak,
-                player_score.best_streak,
-                player_score.correct_answers,
-                player_score.collection_count
-            );
-        }
-
         if game_settings.multiplayer.enabled && game_settings.multiplayer.player_count > 1 {
             // Show combined stats for multiplayer
             let best_streak_overall: u32 = gameplay_score
@@ -425,6 +389,12 @@ pub fn update_team_stats_display(
                 .max()
                 .unwrap_or(0);
 
+            let total_score: i32 = gameplay_score
+                .players
+                .values()
+                .map(|ps| ps.total_score)
+                .sum();
+
             let total_correct: u32 = gameplay_score
                 .players
                 .values()
@@ -437,30 +407,12 @@ pub fn update_team_stats_display(
                 .map(|ps| ps.collection_count)
                 .sum();
 
-            let total_score: i32 = gameplay_score
-                .players
-                .values()
-                .map(|ps| ps.total_score)
-                .sum();
-
             let team_accuracy = if total_attempts > 0 {
                 (total_correct as f32 / total_attempts as f32) * 100.0
             } else {
                 0.0
             };
 
-            // Debug log the calculations
-            info!(
-                "Team calculations - Total Score: {}, Best Overall Streak: {}, Best Current Streak: {}, Total Correct: {}, Total Attempts: {}, Team Accuracy: {:.1}%",
-                total_score,
-                best_streak_overall,
-                best_current_streak,
-                total_correct,
-                total_attempts,
-                team_accuracy
-            );
-
-            // Show both current best streak and all-time best streak
             text.0 = format!(
                 "Team: {} pts | Current Best: {} | All-Time Best: {} | Accuracy: {:.0}%",
                 total_score, best_current_streak, best_streak_overall, team_accuracy
@@ -481,43 +433,6 @@ pub fn update_team_stats_display(
             } else {
                 text.0 = "Current: 0 | Best: 0 | Accuracy: 0%".to_string();
             }
-        }
-    }
-}
-
-/// System to update score display for multiplayer (legacy support)
-pub fn update_score_display(
-    gameplay_score: Res<GameplayScore>,
-    game_settings: Res<GameSettings>,
-    mut score_query: Query<
-        &mut Text,
-        (
-            With<ScoreDisplay>,
-            Without<PlayerScoreDisplay>,
-            Without<TeamStatsDisplay>,
-        ),
-    >,
-) {
-    if !gameplay_score.is_changed() {
-        return;
-    }
-
-    // This system is kept for backward compatibility if there are any legacy ScoreDisplay components
-    for mut text in &mut score_query {
-        if game_settings.multiplayer.enabled && game_settings.multiplayer.player_count > 1 {
-            let total_score: i32 = gameplay_score
-                .players
-                .values()
-                .map(|ps| ps.total_score)
-                .sum();
-            text.0 = format!("Team Total: {}", total_score);
-        } else {
-            let total_score: i32 = gameplay_score
-                .players
-                .values()
-                .map(|ps| ps.total_score)
-                .sum();
-            text.0 = format!("Score: {}", total_score);
         }
     }
 }
@@ -552,67 +467,21 @@ pub fn handle_option_collection_events(
     player_query: Query<&crate::player::PlayerIndex, With<crate::player::Player>>,
 ) {
     for event in collection_events.read() {
-        info!(
-            "Option collection event: player={:?}, correct={}",
-            event.player_entity, event.is_correct
-        );
-
-        // Debug: Check if this player has a PlayerIndex
-        match player_query.get(event.player_entity) {
-            Ok(player_index) => {
-                info!(
-                    "Player {:?} has PlayerIndex({})",
-                    event.player_entity, player_index.0
-                );
-            }
-            Err(_) => {
-                error!(
-                    "Player {:?} not found in player_query or missing PlayerIndex component!",
-                    event.player_entity
-                );
-            }
-        }
-
         // Ensure player exists in the score tracking
         if !gameplay_score.players.contains_key(&event.player_entity) {
             // Get the player name from game settings using the PlayerIndex
             let player_name = if let Ok(player_index) = player_query.get(event.player_entity) {
-                let name = game_settings
+                game_settings
                     .multiplayer
                     .players
                     .get(player_index.0)
                     .map(|ps| ps.name.clone())
-                    .unwrap_or_else(|| format!("Player {}", player_index.0 + 1));
-                info!(
-                    "Using player name '{}' from settings for PlayerIndex({})",
-                    name, player_index.0
-                );
-                name
+                    .unwrap_or_else(|| format!("Player {}", player_index.0 + 1))
             } else {
-                let fallback_name = format!("Player {}", gameplay_score.players.len() + 1);
-                error!(
-                    "Could not get PlayerIndex for {:?}, using fallback name '{}'",
-                    event.player_entity, fallback_name
-                );
-                fallback_name
+                format!("Player {}", gameplay_score.players.len() + 1)
             };
 
             gameplay_score.add_player(event.player_entity, player_name);
-            info!(
-                "Added player {:?} with name '{}' to score tracking. Total players now: {}",
-                event.player_entity,
-                gameplay_score
-                    .players
-                    .get(&event.player_entity)
-                    .unwrap()
-                    .player_name,
-                gameplay_score.players.len()
-            );
-        } else {
-            info!(
-                "Player {:?} already exists in score tracking",
-                event.player_entity
-            );
         }
 
         let points = if event.is_correct {
@@ -621,12 +490,11 @@ pub fn handle_option_collection_events(
             super::WRONG_ANSWER_PENALTY
         };
 
-        let score_event = ScoreUpdateEvent {
+        score_events.write(ScoreUpdateEvent {
             player_entity: event.player_entity,
             is_correct: event.is_correct,
             points_awarded: points,
-        };
-        score_events.write(score_event);
+        });
     }
 }
 
@@ -644,86 +512,53 @@ pub fn handle_chain_destruction_events(
         // Deduct points from player score
         if let Some(player_score) = gameplay_score.get_player_score_mut(event.player_entity) {
             player_score.total_score = (player_score.total_score - event.points_lost).max(0);
-            info!(
-                "Chain destruction! Segment {} ('{}') destroyed. Player lost {} points. Total: {}",
-                event.segment_index, event.option_text, event.points_lost, player_score.total_score
-            );
         }
     }
 }
 
-/// System to update options display in the HUD
-pub fn update_options_display(
+/// System to update the unified options/legend display
+pub fn update_options_legend_display(
     question_system: Option<Res<crate::question::QuestionSystem>>,
-    options_panel_query: Query<&Children, With<OptionsDisplay>>,
+    container_query: Query<Entity, With<OptionsLegendContainer>>,
     mut commands: Commands,
-    container_query: Query<(Entity, &Children, &Name)>,
-    existing_options: Query<(Entity, &OptionItemDisplay)>,
+    existing_items: Query<Entity, With<OptionLegendItem>>,
 ) {
     let Some(question_system) = question_system else {
-        info!("No question system found");
         return;
     };
 
     let Some(current_question) = question_system.get_current_question() else {
-        info!("No current question available");
         return;
     };
 
-    let options = question_system.get_current_options();
-    info!("Found {} options to display", options.len());
-
-    // Find the options panel
-    let Ok(panel_children) = options_panel_query.single() else {
-        info!("Options panel not found");
+    let Ok(container_entity) = container_query.single() else {
         return;
     };
 
-    info!("Options panel found with {} children", panel_children.len());
-
-    // Find the options container
-    let mut options_container = None;
-    for child in panel_children.iter() {
-        if let Ok((entity, _, name)) = container_query.get(child) {
-            info!("Found child: {}", name.as_str());
-            if name.as_str() == "Options Container" {
-                options_container = Some(entity);
-                break;
-            }
-        }
+    // Only update when question system changes
+    if !question_system.is_changed() {
+        return;
     }
-
-    let Some(container_entity) = options_container else {
-        info!("Options container not found in panel children");
-        return;
-    };
-
-    info!("Found options container: {:?}", container_entity);
 
     // Clear existing option displays
-    let existing_count = existing_options.iter().count();
-    for (entity, _) in &existing_options {
+    for entity in &existing_items {
         commands.entity(entity).despawn();
     }
-    info!("Cleared {} existing option displays", existing_count);
 
-    // Create new option displays
-    for (index, option) in options.iter().enumerate() {
-        info!(
-            "Creating option display for: {} (id: {})",
-            option.name, option.id
-        );
+    let options = question_system.get_current_options();
 
+    // Color palette (same as collectibles)
+    let base_colors = [
+        Color::srgb(0.3, 0.5, 0.8), // Blue
+        Color::srgb(0.8, 0.5, 0.3), // Orange
+        Color::srgb(0.5, 0.8, 0.3), // Green
+        Color::srgb(0.8, 0.3, 0.5), // Pink
+        Color::srgb(0.5, 0.3, 0.8), // Purple
+    ];
+
+    // Create new option legend items
+    for option in options.iter() {
         let is_correct = option.id == current_question.option;
-
-        // Choose color based on option ID (same as the collectibles)
-        let base_colors = [
-            Color::srgb(0.3, 0.5, 0.8), // Blue
-            Color::srgb(0.8, 0.5, 0.3), // Orange
-            Color::srgb(0.5, 0.8, 0.3), // Green
-            Color::srgb(0.8, 0.3, 0.5), // Pink
-            Color::srgb(0.5, 0.3, 0.8), // Purple
-        ];
         let color = base_colors[option.id % base_colors.len()];
 
         // Make correct answers brighter
@@ -737,10 +572,10 @@ pub fn update_options_display(
             color
         };
 
-        // Create the main option container
+        // Create the main option legend item
         let option_entity = commands
             .spawn((
-                Name::new(format!("Option Display: {}", option.name)),
+                Name::new(format!("Option Legend: {}", option.name)),
                 Node {
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
@@ -763,7 +598,7 @@ pub fn update_options_display(
                     display_color
                 }),
                 BorderRadius::all(Val::Px(3.0)),
-                OptionItemDisplay {
+                OptionLegendItem {
                     option_id: option.id,
                 },
             ))
@@ -826,65 +661,5 @@ pub fn update_options_display(
         // Set up parent-child relationships
         commands.entity(option_entity).add_children(&children);
         commands.entity(container_entity).add_child(option_entity);
-
-        info!("Created option display {} for '{}'", index, option.name);
     }
-
-    info!("Updated options display with {} options", options.len());
-}
-
-fn spawn_options_panel(commands: &mut Commands) -> Entity {
-    // Create options header
-    let options_header = commands
-        .spawn((
-            Name::new("Options Header"),
-            Text("Available Options:".to_string()),
-            TextFont {
-                font_size: 14.0,
-                ..default()
-            },
-            TextColor(Color::srgb(0.9, 0.9, 0.9)),
-        ))
-        .id();
-
-    // Create options container
-    let options_container = commands
-        .spawn((
-            Name::new("Options Container"),
-            Node {
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(3.0),
-                align_items: AlignItems::Stretch,
-                ..default()
-            },
-        ))
-        .id();
-
-    // Create the main options panel
-    let panel = commands
-        .spawn((
-            Name::new("Options Panel"),
-            Node {
-                flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(10.0)),
-                margin: UiRect::top(Val::Px(10.0)),
-                border: UiRect::all(Val::Px(1.0)),
-                row_gap: Val::Px(5.0),
-                align_items: AlignItems::Stretch,
-                width: Val::Percent(100.0),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.1, 0.1, 0.2, 0.7)),
-            BorderColor(Color::srgb(0.3, 0.3, 0.4)),
-            BorderRadius::all(Val::Px(5.0)),
-            OptionsDisplay,
-        ))
-        .id();
-
-    // Set up parent-child relationships
-    commands
-        .entity(panel)
-        .add_children(&[options_header, options_container]);
-
-    panel
 }

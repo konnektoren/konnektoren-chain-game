@@ -376,6 +376,7 @@ pub struct ChainReactionEvent {
 }
 
 /// Event for when chain segments are destroyed and points should be deducted
+#[allow(dead_code)]
 #[derive(Event)]
 pub struct ChainSegmentDestroyedEvent {
     pub player_entity: Entity,

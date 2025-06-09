@@ -168,14 +168,6 @@ pub fn spawn_option_collectibles(
         return;
     }
 
-    info!(
-        "Spawning options: {}/{} exist, target: {} total, {} per type",
-        total_existing,
-        spawn_timer.total_target_options,
-        spawn_timer.total_target_options,
-        spawn_timer.options_per_type
-    );
-
     // For each option type, ensure we have the right number spawned
     for option in options {
         let existing_count = option_counts.get(&option.id).copied().unwrap_or(0);
@@ -206,11 +198,6 @@ pub fn spawn_option_collectibles(
 
                     // Mark this position as occupied for subsequent spawns
                     occupied_positions.insert((spawn_pos.x, spawn_pos.y));
-
-                    info!(
-                        "Spawned option '{}' at ({}, {})",
-                        option.name, spawn_pos.x, spawn_pos.y
-                    );
                 }
             }
         }
