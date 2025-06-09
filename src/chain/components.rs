@@ -24,18 +24,33 @@ impl Default for PlayerChain {
 pub struct ChainSegment {
     pub segment_index: usize,
     pub option_text: String,
+    pub option_id: usize,
     pub base_color: Color,
     pub pulse_phase: f32,
+    pub level: u32,
+    pub merge_value: u32,
 }
 
 impl ChainSegment {
-    pub fn new(segment_index: usize, option_text: String, base_color: Color) -> Self {
+    pub fn new(
+        segment_index: usize,
+        option_text: String,
+        option_id: usize,
+        base_color: Color,
+    ) -> Self {
         Self {
             segment_index,
             option_text,
+            option_id,
             base_color,
-            pulse_phase: segment_index as f32 * 0.3, // Offset pulse phases
+            pulse_phase: segment_index as f32 * 0.3,
+            level: 1,
+            merge_value: 1,
         }
+    }
+
+    pub fn get_radius(&self) -> f32 {
+        super::CHAIN_SEGMENT_SIZE * (1.0 + (self.level - 1) as f32 * 0.5)
     }
 }
 
@@ -243,8 +258,9 @@ pub struct FlyingToChain {
     pub target_position: Vec2,
     pub flight_timer: Timer,
     pub option_text: String,
+    pub option_id: usize,
     pub option_color: Color,
-    pub curve_height: f32, // For parabolic flight path
+    pub curve_height: f32,
 }
 
 impl FlyingToChain {
@@ -252,6 +268,7 @@ impl FlyingToChain {
         start_pos: Vec2,
         target_pos: Vec2,
         option_text: String,
+        option_id: usize,
         option_color: Color,
     ) -> Self {
         Self {
@@ -259,8 +276,9 @@ impl FlyingToChain {
             target_position: target_pos,
             flight_timer: Timer::from_seconds(super::FLY_TO_CHAIN_DURATION, TimerMode::Once),
             option_text,
+            option_id,
             option_color,
-            curve_height: 50.0, // Height of the parabolic arc
+            curve_height: 50.0,
         }
     }
 
@@ -283,6 +301,7 @@ impl FlyingToChain {
 pub struct ChainExtendEvent {
     pub player_entity: Entity,
     pub option_text: String,
+    pub option_id: usize,
     pub option_color: Color,
     pub collect_position: Vec2,
 }
@@ -389,3 +408,75 @@ pub struct ChainSegmentDestroyedEvent {
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct PlayerChainSegment(pub Entity);
+
+/// Event for when segments should be merged
+#[derive(Event)]
+pub struct ChainMergeEvent {
+    pub player_entity: Entity,
+    pub merge_segments: Vec<(Entity, usize)>, // (entity, segment_index)
+    pub option_color: Color,
+    pub new_level: u32,
+}
+
+/// Component for segments undergoing merge animation
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct ChainMerging {
+    pub merge_timer: Timer,
+    pub target_position: Vec3,
+    pub original_position: Vec3,
+    pub is_target_segment: bool, // The segment that others merge into
+}
+
+impl ChainMerging {
+    pub fn new(target_pos: Vec3, original_pos: Vec3, is_target: bool) -> Self {
+        Self {
+            merge_timer: Timer::from_seconds(super::MERGE_ANIMATION_DURATION, TimerMode::Once),
+            target_position: target_pos,
+            original_position: original_pos,
+            is_target_segment: is_target,
+        }
+    }
+}
+
+/// Resource to track merge cooldown to prevent rapid merging
+#[derive(Resource, Reflect, Default)]
+#[reflect(Resource)]
+pub struct ChainMergeState {
+    pub merge_cooldown: Timer,
+    pub recent_merges: Vec<(Entity, f32)>, // (player_entity, timestamp)
+}
+
+impl ChainMergeState {
+    pub fn can_merge(&self, player_entity: Entity, current_time: f32) -> bool {
+        if !self.merge_cooldown.finished() {
+            return false;
+        }
+
+        // Check if this player has merged recently
+        !self.recent_merges.iter().any(|(entity, timestamp)| {
+            *entity == player_entity && (current_time - timestamp) < super::MERGE_COOLDOWN_DURATION
+        })
+    }
+
+    pub fn record_merge(&mut self, player_entity: Entity, current_time: f32) {
+        self.recent_merges.push((player_entity, current_time));
+        self.merge_cooldown.reset();
+
+        // Clean up old merge records
+        self.recent_merges.retain(|(_, timestamp)| {
+            current_time - timestamp < super::MERGE_COOLDOWN_DURATION * 2.0
+        });
+    }
+}
+
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct SegmentReindexMarker {
+    pub new_index: usize,
+}
+
+#[derive(Component)]
+pub struct ChainCleanupMarker {
+    pub player_entity: Entity,
+}
