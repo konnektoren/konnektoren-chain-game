@@ -117,20 +117,36 @@ fn assign_optimal_input_configuration(
     assignment: &mut InputDeviceAssignment,
 ) {
     let player_count = multiplayer_settings.player_count;
-    let gamepad_count = available_devices.gamepads.len();
 
     // Clear existing assignments
     assignment.assignments.clear();
 
     if player_count == 1 {
-        // Single player: allow all devices
+        // Single player: prioritize touch on mobile platforms
         let player = &mut multiplayer_settings.players[0];
-        player.input.primary_input = InputDevice::Keyboard(KeyboardScheme::WASD);
-        player.input.secondary_input = if gamepad_count > 0 {
-            Some(InputDevice::Gamepad(0))
-        } else {
-            Some(InputDevice::Mouse)
-        };
+
+        #[cfg(target_family = "wasm")]
+        {
+            if available_devices.has_touch {
+                player.input.primary_input = InputDevice::Touch;
+                player.input.secondary_input = Some(InputDevice::Keyboard(KeyboardScheme::WASD));
+            } else {
+                player.input.primary_input = InputDevice::Keyboard(KeyboardScheme::WASD);
+                player.input.secondary_input = Some(InputDevice::Mouse);
+            }
+        }
+
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let gamepad_count = available_devices.gamepads.len();
+            player.input.primary_input = InputDevice::Keyboard(KeyboardScheme::WASD);
+            player.input.secondary_input = if gamepad_count > 0 {
+                Some(InputDevice::Gamepad(0))
+            } else {
+                Some(InputDevice::Mouse)
+            };
+        }
+
         player.input.allow_multiple_devices = true;
 
         assignment.assign_device(0, player.input.primary_input.clone());

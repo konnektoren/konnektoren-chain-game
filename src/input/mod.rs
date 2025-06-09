@@ -34,6 +34,7 @@ pub(super) fn plugin(app: &mut App) {
                 handle_gamepad_input,
                 handle_mouse_input,
                 handle_touch_input,
+                handle_virtual_joystick_interaction,
                 update_virtual_joystick_visual,
             )
                 .in_set(crate::AppSystems::RecordInput),
@@ -45,6 +46,6 @@ pub(super) fn plugin(app: &mut App) {
 // Configuration constants
 pub const GAMEPAD_DEADZONE: f32 = 0.2;
 pub const GAMEPAD_MOVE_THRESHOLD: f32 = 0.5;
-pub const VIRTUAL_JOYSTICK_RADIUS: f32 = 80.0;
-pub const VIRTUAL_JOYSTICK_DEADZONE: f32 = 10.0;
-pub const VIRTUAL_JOYSTICK_KNOB_SIZE: f32 = 30.0;
+pub const VIRTUAL_JOYSTICK_RADIUS: f32 = 100.0;
+pub const VIRTUAL_JOYSTICK_DEADZONE: f32 = 15.0;
+pub const VIRTUAL_JOYSTICK_KNOB_SIZE: f32 = 35.0;

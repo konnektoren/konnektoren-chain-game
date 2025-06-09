@@ -206,23 +206,42 @@ pub fn handle_touch_input(
     mut joystick_state: ResMut<VirtualJoystickState>,
     mut controller_query: Query<(&mut InputController, &PlayerInputMapping)>,
     windows: Query<&Window>,
+    joystick_query: Query<&Node, With<VirtualJoystick>>,
+    cameras: Query<(&Camera, &GlobalTransform)>,
 ) {
     let Ok(window) = windows.single() else {
         return;
     };
 
+    // Get camera for coordinate conversion
+    let Ok((camera, camera_transform)) = cameras.single() else {
+        return;
+    };
+
     for touch in touch_events.read() {
+        // Convert touch position to world coordinates
+        let touch_world_pos = camera
+            .viewport_to_world_2d(camera_transform, touch.position)
+            .unwrap_or(touch.position);
+
         match touch.phase {
             bevy::input::touch::TouchPhase::Started => {
-                // Flip Y coordinate for touch as well
-                let flipped_pos = Vec2::new(touch.position.x, window.height() - touch.position.y);
-                joystick_state.start_input(flipped_pos, Some(touch.id));
+                // Check if touch is within joystick area or start new joystick interaction
+                let should_start_joystick = if let Ok(joystick_node) = joystick_query.single() {
+                    // Calculate joystick world position (this is simplified - you might need more complex calculations)
+                    is_touch_in_joystick_area(touch.position, window, joystick_node)
+                } else {
+                    true // If no specific joystick area, allow anywhere
+                };
+
+                if should_start_joystick {
+                    joystick_state.start_input(touch_world_pos, Some(touch.id));
+                    joystick_state.max_distance = super::VIRTUAL_JOYSTICK_RADIUS;
+                }
             }
             bevy::input::touch::TouchPhase::Moved => {
                 if joystick_state.touch_id == Some(touch.id) {
-                    let flipped_pos =
-                        Vec2::new(touch.position.x, window.height() - touch.position.y);
-                    joystick_state.update_input(flipped_pos);
+                    joystick_state.update_input(touch_world_pos);
                 }
             }
             bevy::input::touch::TouchPhase::Ended | bevy::input::touch::TouchPhase::Canceled => {
@@ -233,7 +252,7 @@ pub fn handle_touch_input(
         }
     }
 
-    // Update controller with joystick state
+    // Update controller with joystick state for touch-enabled players
     for (mut controller, input_mapping) in &mut controller_query {
         if !input_mapping.touch_enabled {
             continue;
@@ -242,6 +261,8 @@ pub fn handle_touch_input(
         if joystick_state.is_active {
             controller.movement_input = joystick_state.movement_vector;
             controller.input_source = InputSource::Touch;
+        } else if matches!(controller.input_source, InputSource::Touch) {
+            controller.movement_input = Vec2::ZERO;
         }
     }
 }
@@ -321,13 +342,20 @@ pub fn setup_virtual_joystick(mut commands: Commands) {
     let joystick_size = super::VIRTUAL_JOYSTICK_RADIUS * 2.0;
     let knob_size = super::VIRTUAL_JOYSTICK_KNOB_SIZE * 2.0;
 
+    // Make joystick more prominent on mobile/touch devices
+    #[cfg(target_family = "wasm")]
+    let (bottom_offset, right_offset, joystick_opacity) = (Val::Px(80.0), Val::Px(80.0), 0.8);
+
+    #[cfg(not(target_family = "wasm"))]
+    let (bottom_offset, right_offset, joystick_opacity) = (Val::Px(50.0), Val::Px(50.0), 0.6);
+
     commands.spawn((
         Name::new("Virtual Joystick Container"),
         VirtualJoystick,
         Node {
             position_type: PositionType::Absolute,
-            bottom: Val::Px(50.0),
-            right: Val::Px(50.0),
+            bottom: bottom_offset,
+            right: right_offset,
             width: Val::Px(joystick_size),
             height: Val::Px(joystick_size),
             align_items: AlignItems::Center,
@@ -335,8 +363,9 @@ pub fn setup_virtual_joystick(mut commands: Commands) {
             ..default()
         },
         BackgroundColor(Color::NONE),
-        Visibility::Visible, // Always visible
+        Visibility::Visible,
         StateScoped(Screen::Gameplay),
+        Interaction::default(), // Add interaction for touch detection
         children![
             // Base circle (outer ring)
             (
@@ -349,9 +378,10 @@ pub fn setup_virtual_joystick(mut commands: Commands) {
                     justify_content: JustifyContent::Center,
                     ..default()
                 },
-                BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.2)),
+                BackgroundColor(Color::srgba(1.0, 1.0, 1.0, joystick_opacity * 0.3)),
                 BorderRadius::all(Val::Px(joystick_size / 2.0)),
-                BorderColor(Color::srgba(1.0, 1.0, 1.0, 0.4)),
+                BorderColor(Color::srgba(1.0, 1.0, 1.0, joystick_opacity * 0.6)),
+                Interaction::default(), // Add interaction for touch detection
                 children![
                     // Knob circle (inner circle)
                     (
@@ -361,19 +391,20 @@ pub fn setup_virtual_joystick(mut commands: Commands) {
                             position_type: PositionType::Absolute,
                             width: Val::Px(knob_size),
                             height: Val::Px(knob_size),
-                            left: Val::Px((joystick_size - knob_size) / 2.0), // Center initially
-                            top: Val::Px((joystick_size - knob_size) / 2.0),  // Center initially
+                            left: Val::Px((joystick_size - knob_size) / 2.0),
+                            top: Val::Px((joystick_size - knob_size) / 2.0),
                             ..default()
                         },
-                        BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.8)),
+                        BackgroundColor(Color::srgba(1.0, 1.0, 1.0, joystick_opacity)),
                         BorderRadius::all(Val::Px(knob_size / 2.0)),
+                        Interaction::default(), // Add interaction for touch detection
                     ),
                 ],
             ),
         ],
     ));
 
-    info!("Virtual joystick UI created (always visible)");
+    info!("Virtual joystick UI created for mobile/touch input");
 }
 
 /// System to update virtual joystick visual position
@@ -399,6 +430,52 @@ pub fn update_virtual_joystick_visual(
             let center_offset = (joystick_size - knob_size) / 2.0;
             node.left = Val::Px(center_offset);
             node.top = Val::Px(center_offset);
+        }
+    }
+}
+
+/// Helper function to check if touch is within joystick area
+fn is_touch_in_joystick_area(touch_pos: Vec2, window: &Window, _joystick_node: &Node) -> bool {
+    // For now, allow touch anywhere on the right side of the screen
+    // You can make this more sophisticated by calculating the actual joystick position
+    let right_side_threshold = window.width() * 0.7;
+    touch_pos.x > right_side_threshold
+}
+
+/// System to handle direct interaction with virtual joystick UI elements
+pub fn handle_virtual_joystick_interaction(
+    mut interaction_query: Query<
+        (&Interaction, &GlobalTransform, &Node),
+        (With<VirtualJoystickBase>, Changed<Interaction>),
+    >,
+    mut joystick_state: ResMut<VirtualJoystickState>,
+    mut touch_events: EventReader<TouchInput>,
+    windows: Query<&Window>,
+) {
+    let Ok(_window) = windows.single() else {
+        return;
+    };
+
+    // Handle UI-based interaction
+    for (interaction, global_transform, _node) in &mut interaction_query {
+        match interaction {
+            Interaction::Pressed => {
+                // Find the current touch position and start joystick from center of UI element
+                for touch in touch_events.read() {
+                    if matches!(touch.phase, bevy::input::touch::TouchPhase::Started) {
+                        let joystick_center = global_transform.translation().truncate();
+                        joystick_state.start_input(joystick_center, Some(touch.id));
+                        joystick_state.max_distance = super::VIRTUAL_JOYSTICK_RADIUS;
+                        break;
+                    }
+                }
+            }
+            Interaction::Hovered => {
+                // Visual feedback when hovering/touching the joystick
+            }
+            Interaction::None => {
+                // Could handle release here if needed
+            }
         }
     }
 }
