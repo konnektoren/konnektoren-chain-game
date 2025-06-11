@@ -7,6 +7,7 @@ pub use components::*;
 use systems::*;
 
 pub(super) fn plugin(app: &mut App) {
+    #[cfg(feature = "particles")]
     app.add_plugins(bevy_hanabi::HanabiPlugin);
 
     app.register_type::<ChainExplosionEffect>();

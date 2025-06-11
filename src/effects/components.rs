@@ -44,6 +44,7 @@ pub struct SpawnExplosionEvent {
 #[derive(Event)]
 pub struct SpawnCollectionEvent {
     pub position: Vec3,
+    #[allow(dead_code)] // Color is used when particles feature is enabled
     pub color: Color,
 }
 

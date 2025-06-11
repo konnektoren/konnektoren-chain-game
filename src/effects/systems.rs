@@ -1,5 +1,7 @@
 use super::components::*;
 use bevy::prelude::*;
+
+#[cfg(feature = "particles")]
 use bevy_hanabi::prelude::*;
 
 /// System to set up particle effects when entering gameplay
@@ -12,19 +14,31 @@ pub fn setup_particle_effects(mut commands: Commands) {
 pub fn handle_explosion_events(
     mut commands: Commands,
     mut explosion_events: EventReader<SpawnExplosionEvent>,
-    mut effects: ResMut<Assets<EffectAsset>>,
+    #[cfg(feature = "particles")] mut effects: ResMut<Assets<EffectAsset>>,
 ) {
     for event in explosion_events.read() {
-        // Create a custom effect with the ball's color
-        let explosion_effect = create_colored_explosion_effect(&mut effects, event.color);
+        #[cfg(feature = "particles")]
+        {
+            // Create a custom effect with the ball's color
+            let explosion_effect = create_colored_explosion_effect(&mut effects, event.color);
+            commands.spawn((
+                Name::new("Chain Explosion Effect"),
+                ChainExplosionEffect::new(2.0, event.intensity),
+                ParticleEffect::new(explosion_effect),
+                Transform::from_translation(event.position),
+                StateScoped(crate::screens::Screen::Gameplay),
+            ));
+        }
 
-        commands.spawn((
-            Name::new("Chain Explosion Effect"),
-            ChainExplosionEffect::new(2.0, event.intensity),
-            ParticleEffect::new(explosion_effect),
-            Transform::from_translation(event.position),
-            StateScoped(crate::screens::Screen::Gameplay),
-        ));
+        #[cfg(not(feature = "particles"))]
+        {
+            commands.spawn((
+                Name::new("Chain Explosion Effect"),
+                ChainExplosionEffect::new(2.0, event.intensity),
+                Transform::from_translation(event.position),
+                StateScoped(crate::screens::Screen::Gameplay),
+            ));
+        }
 
         info!(
             "Spawned explosion effect at {:?} with color {:?}",
@@ -33,6 +47,44 @@ pub fn handle_explosion_events(
     }
 }
 
+/// System to handle collection events
+pub fn handle_collection_events(
+    mut commands: Commands,
+    mut collection_events: EventReader<SpawnCollectionEvent>,
+    #[cfg(feature = "particles")] mut effects: ResMut<Assets<EffectAsset>>,
+) {
+    for event in collection_events.read() {
+        #[cfg(feature = "particles")]
+        {
+            // Use the existing create_colored_collection_effect function
+            let collection_effect = create_colored_collection_effect(&mut effects, event.color);
+            commands.spawn((
+                Name::new("Collection Effect"),
+                CollectionEffect::new(1.0),
+                ParticleEffect::new(collection_effect),
+                Transform::from_translation(event.position),
+                StateScoped(crate::screens::Screen::Gameplay),
+            ));
+        }
+
+        #[cfg(not(feature = "particles"))]
+        {
+            commands.spawn((
+                Name::new("Collection Effect"),
+                CollectionEffect::new(1.0),
+                Transform::from_translation(event.position),
+                StateScoped(crate::screens::Screen::Gameplay),
+            ));
+        }
+
+        info!(
+            "Spawned collection effect at {:?} with color {:?}",
+            event.position, event.color
+        );
+    }
+}
+
+#[cfg(feature = "particles")]
 /// Create a collection effect with a specific color
 fn create_colored_collection_effect(
     effects: &mut Assets<EffectAsset>,
@@ -106,6 +158,7 @@ fn create_colored_collection_effect(
     effects.add(effect)
 }
 
+#[cfg(feature = "particles")]
 /// Create a collection effect with a specific color
 fn create_colored_explosion_effect(
     effects: &mut Assets<EffectAsset>,
@@ -204,25 +257,5 @@ pub fn cleanup_finished_effects(
         if effect.lifetime.finished() {
             commands.entity(entity).despawn();
         }
-    }
-}
-
-/// System to handle collection events
-pub fn handle_collection_events(
-    mut commands: Commands,
-    mut collection_events: EventReader<SpawnCollectionEvent>,
-    mut effects: ResMut<Assets<EffectAsset>>,
-) {
-    for event in collection_events.read() {
-        // Use the existing create_colored_collection_effect function
-        let collection_effect = create_colored_collection_effect(&mut effects, event.color);
-
-        commands.spawn((
-            Name::new("Collection Effect"),
-            CollectionEffect::new(1.0),
-            ParticleEffect::new(collection_effect),
-            Transform::from_translation(event.position),
-            StateScoped(crate::screens::Screen::Gameplay),
-        ));
     }
 }

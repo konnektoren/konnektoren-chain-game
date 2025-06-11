@@ -1,12 +1,14 @@
 [package]
 name = "konnektoren-chain-game"
 authors = ["Christian M <chriamue@gmail.com>"]
-version = "0.1.13"
+version = "0.1.14"
 edition = "2024"
 
 [dependencies]
-bevy = { version = "0.16", features = ["webgpu"] }
-bevy_hanabi = { version = "0.16", default-features = false, features = ["2d"] }
+bevy = { version = "0.16" }
+bevy_hanabi = { version = "0.16", optional = true, default-features = false, features = [
+    "2d",
+] }
 konnektoren-core = { git = "https://github.com/konnektoren/konnektoren-rs.git", default-features = false }
 rand = "0.8"
 # Compile low-severity logs out of native builds for performance.
@@ -41,6 +43,7 @@ wasm-bindgen = "0.2"
 [features]
 # Default to a native dev build.
 default = ["dev_native"]
+particles = ["bevy_hanabi", "bevy/webgpu"]
 dev = [
     # Improve compile times for dev builds by linking Bevy as a dynamic library.
     "bevy/dynamic_linking",
