@@ -1,4 +1,6 @@
 use super::*;
+use bevy_egui::EguiPlugin;
+use konnektoren_bevy::prelude::*;
 
 pub struct AppPlugin;
 
@@ -24,6 +26,12 @@ impl Plugin for AppPlugin {
                     ..default()
                 }),
         );
+
+        app.add_plugins(EguiPlugin {
+            enable_multipass_for_primary_context: true,
+        });
+
+        app.add_plugins((KonnektorenThemePlugin, UIPlugin, ScreensPlugin));
 
         // Initialize resources
         app.init_resource::<resources::MultipleChoiceChallenge>();

@@ -9,6 +9,12 @@ bevy = { version = "0.16" }
 bevy_hanabi = { version = "0.16", optional = true, default-features = false, features = [
     "2d",
 ] }
+bevy_egui = "0.34.1"
+konnektoren-bevy = { git = "https://github.com/konnektoren/konnektoren-bevy", features = [
+    "theme",
+    "ui",
+    "screens",
+] }
 konnektoren-core = { git = "https://github.com/konnektoren/konnektoren-rs.git", default-features = false }
 rand = "0.8"
 # Compile low-severity logs out of native builds for performance.
