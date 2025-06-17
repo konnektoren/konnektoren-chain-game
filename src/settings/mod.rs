@@ -8,18 +8,14 @@ pub use components::*;
 use systems::*;
 
 pub(super) fn plugin(app: &mut App) {
-    // Register all types
+    // Register types
     app.register_type::<GameSettings>()
         .register_type::<PlayerSettings>()
         .register_type::<InputSettings>()
         .register_type::<MultiplayerSettings>()
         .register_type::<AvailableInputDevices>()
         .register_type::<InputDeviceAssignment>()
-        .register_type::<DeviceSelectionState>()
-        .register_type::<PlayerConfigPanel>()
-        .register_type::<DeviceButton>()
-        .register_type::<DeviceButtonsContainer>()
-        .register_type::<DeviceSectionContainer>();
+        .register_type::<DeviceSelectionState>();
 
     // Initialize resources
     app.init_resource::<GameSettings>()
@@ -28,7 +24,7 @@ pub(super) fn plugin(app: &mut App) {
         .init_resource::<DeviceSelectionState>()
         .init_resource::<DeviceWarningTracker>();
 
-    // Core systems
+    // Only input device systems
     app.add_systems(
         Update,
         (

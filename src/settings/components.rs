@@ -25,7 +25,7 @@ impl Default for MultiplayerSettings {
             enabled: false,
             player_count: 1,
             auto_detect_players: false,
-            auto_assign_inputs: false, // Disabled by default to prevent conflicts
+            auto_assign_inputs: false,
             players: vec![PlayerSettings::default()],
         };
         settings.setup_default_player_configs();
@@ -343,7 +343,7 @@ pub struct DeviceSelectionState {
     pub pending_assignments: Vec<(usize, InputDevice)>,
 }
 
-// UI Components
+// UI Components for device selection
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct PlayerConfigPanel {

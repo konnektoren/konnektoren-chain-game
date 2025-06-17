@@ -1,4 +1,5 @@
 use super::*;
+use crate::settings as game_settings;
 use bevy_egui::EguiPlugin;
 use konnektoren_bevy::prelude::*;
 
@@ -31,12 +32,17 @@ impl Plugin for AppPlugin {
             enable_multipass_for_primary_context: true,
         });
 
-        app.add_plugins((KonnektorenThemePlugin, UIPlugin, ScreensPlugin));
+        app.add_plugins((
+            KonnektorenThemePlugin,
+            UIPlugin,
+            ScreensPlugin,
+            SettingsPlugin,
+        ));
 
         // Initialize resources
         app.init_resource::<resources::MultipleChoiceChallenge>();
 
-        app.add_plugins((settings::plugin,));
+        app.add_plugins((game_settings::plugin,));
 
         // Add other plugins.
         app.add_plugins((
