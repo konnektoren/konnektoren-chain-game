@@ -3210,7 +3210,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "konnektoren-bevy"
 version = "0.1.0"
-source = "git+https://github.com/konnektoren/konnektoren-bevy#9b16f2216e7fe9aeb2d0e1a79bcd7d640e7edbf1"
+source = "git+https://github.com/konnektoren/konnektoren-bevy#e9efd45030c9376ff1be841b2ca2e58113cf8992"
 dependencies = [
  "bevy",
  "bevy_egui",

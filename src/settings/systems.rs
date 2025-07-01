@@ -1,5 +1,6 @@
 use super::components::*;
 use bevy::prelude::*;
+use konnektoren_bevy::input::device::{AvailableInputDevices, InputDevice, KeyboardScheme};
 use std::collections::HashSet;
 
 /// Resource to track already warned about device assignments
@@ -35,16 +36,16 @@ pub fn detect_input_devices(
     // Always assume keyboard, mouse available on PC platforms
     #[cfg(not(target_family = "wasm"))]
     {
-        available_devices.has_keyboard = true;
-        available_devices.has_mouse = true;
+        available_devices.keyboard = true;
+        available_devices.mouse = true;
     }
 
     // On web, we might need to detect these differently
     #[cfg(target_family = "wasm")]
     {
-        available_devices.has_keyboard = true;
-        available_devices.has_mouse = true;
-        available_devices.has_touch = true;
+        available_devices.keyboard = true;
+        available_devices.mouse = true;
+        available_devices.touch = true;
     }
 }
 
@@ -101,7 +102,7 @@ fn calculate_suggested_player_count(
 ) -> usize {
     if gamepad_count == 0 {
         // No gamepads: keyboard only (WASD + Arrow keys for 2 players max)
-        if available_devices.has_keyboard { 2 } else { 1 }
+        if available_devices.keyboard { 2 } else { 1 }
     } else if gamepad_count == 1 {
         // One gamepad: gamepad + keyboard
         2
@@ -127,7 +128,7 @@ fn assign_optimal_input_configuration(
 
         #[cfg(target_family = "wasm")]
         {
-            if available_devices.has_touch {
+            if available_devices.touch {
                 player.input.primary_input = InputDevice::Touch;
                 player.input.secondary_input = Some(InputDevice::Keyboard(KeyboardScheme::WASD));
             } else {

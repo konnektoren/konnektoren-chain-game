@@ -1,6 +1,7 @@
 use crate::settings::GameSettings;
 use crate::{menus::Menu, screens::Screen};
 use bevy::{input::common_conditions::input_just_pressed, prelude::*};
+use konnektoren_bevy::input::device::AvailableInputDevices;
 use konnektoren_bevy::screens::settings::*;
 use konnektoren_bevy::screens::settings::{SettingsScreenConfig, SettingsScreenEvent};
 use konnektoren_bevy::settings::{SettingType, SettingValue};
@@ -21,7 +22,7 @@ fn spawn_settings_screen(
     mut commands: Commands,
     game_settings: Res<GameSettings>,
     global_volume: Res<GlobalVolume>,
-    available_devices: Res<crate::settings::AvailableInputDevices>,
+    available_devices: Res<AvailableInputDevices>,
 ) {
     info!("Spawning settings screen");
 
@@ -93,21 +94,19 @@ fn create_multiplayer_section(game_settings: &GameSettings) -> SettingsSection {
         ))
 }
 
-fn create_device_section(
-    available_devices: &crate::settings::AvailableInputDevices,
-) -> SettingsSection {
+fn create_device_section(available_devices: &AvailableInputDevices) -> SettingsSection {
     let gamepad_count = available_devices.gamepads.len();
 
     // Create a status string similar to your original
     let device_status = format!(
         "Gamepads: {} | Keyboard: {} | Mouse: {}",
         gamepad_count,
-        if available_devices.has_keyboard {
+        if available_devices.keyboard {
             "✓"
         } else {
             "✗"
         },
-        if available_devices.has_mouse {
+        if available_devices.mouse {
             "✓"
         } else {
             "✗"

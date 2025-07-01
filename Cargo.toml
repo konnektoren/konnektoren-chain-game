@@ -15,6 +15,7 @@ konnektoren-bevy = { git = "https://github.com/konnektoren/konnektoren-bevy", fe
     "ui",
     "screens",
     "settings",
+    "input",
 ] }
 konnektoren-core = { git = "https://github.com/konnektoren/konnektoren-rs.git", default-features = false }
 rand = "0.8"

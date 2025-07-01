@@ -2,6 +2,7 @@ use super::components::*;
 use crate::screens::Screen;
 use crate::settings::GameSettings;
 use bevy::prelude::*;
+use konnektoren_bevy::input::device::{AvailableInputDevices, InputDevice};
 
 /// System to detect and track connected gamepads
 pub fn detect_gamepads(
@@ -271,7 +272,7 @@ pub fn handle_touch_input(
 pub fn assign_gamepads_to_players(
     mut player_query: Query<&mut PlayerInputMapping, With<crate::player::Player>>,
     game_settings: Res<GameSettings>,
-    available_devices: Res<crate::settings::AvailableInputDevices>,
+    available_devices: Res<AvailableInputDevices>,
     assignment: Res<crate::settings::InputDeviceAssignment>,
 ) {
     if !game_settings.is_changed() && !available_devices.is_changed() && !assignment.is_changed() {
@@ -290,20 +291,20 @@ pub fn assign_gamepads_to_players(
 
             // Assign primary input device
             match &player_settings.input.primary_input {
-                crate::settings::InputDevice::Keyboard(scheme) => {
+                InputDevice::Keyboard(scheme) => {
                     input_mapping.keyboard_scheme = Some(scheme.clone());
                 }
-                crate::settings::InputDevice::Gamepad(gamepad_id) => {
+                InputDevice::Gamepad(gamepad_id) => {
                     if let Some(gamepad_entity) =
                         available_devices.gamepads.get(*gamepad_id as usize)
                     {
                         input_mapping.gamepad_entity = Some(*gamepad_entity);
                     }
                 }
-                crate::settings::InputDevice::Mouse => {
+                InputDevice::Mouse => {
                     input_mapping.mouse_enabled = true;
                 }
-                crate::settings::InputDevice::Touch => {
+                InputDevice::Touch => {
                     input_mapping.touch_enabled = true;
                 }
             }
@@ -311,12 +312,12 @@ pub fn assign_gamepads_to_players(
             // Assign secondary input device (for single player)
             if let Some(ref secondary_device) = player_settings.input.secondary_input {
                 match secondary_device {
-                    crate::settings::InputDevice::Keyboard(scheme) => {
+                    InputDevice::Keyboard(scheme) => {
                         if input_mapping.keyboard_scheme.is_none() {
                             input_mapping.keyboard_scheme = Some(scheme.clone());
                         }
                     }
-                    crate::settings::InputDevice::Gamepad(gamepad_id) => {
+                    InputDevice::Gamepad(gamepad_id) => {
                         if input_mapping.gamepad_entity.is_none() {
                             if let Some(gamepad_entity) =
                                 available_devices.gamepads.get(*gamepad_id as usize)
@@ -325,10 +326,10 @@ pub fn assign_gamepads_to_players(
                             }
                         }
                     }
-                    crate::settings::InputDevice::Mouse => {
+                    InputDevice::Mouse => {
                         input_mapping.mouse_enabled = true;
                     }
-                    crate::settings::InputDevice::Touch => {
+                    InputDevice::Touch => {
                         input_mapping.touch_enabled = true;
                     }
                 }

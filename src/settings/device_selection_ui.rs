@@ -2,6 +2,7 @@ use crate::settings::*;
 use crate::theme::prelude::*;
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::picking::hover::HoverMap;
+use konnektoren_bevy::input::device::{AvailableInputDevices, InputDevice};
 
 /// System to spawn the device selection interface with proper Bevy scrolling
 pub fn spawn_device_selection_ui(mut commands: Commands, game_settings: Res<GameSettings>) {

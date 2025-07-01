@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use konnektoren_bevy::input::device::KeyboardScheme;
 
 /// Main input controller component for entities that need input
 #[derive(Component, Reflect, Clone)]
@@ -16,7 +17,7 @@ impl Default for InputController {
             movement_input: Vec2::ZERO,
             action_input: ActionInput::default(),
             player_id: 0,
-            input_source: InputSource::Keyboard(crate::settings::KeyboardScheme::Arrows),
+            input_source: InputSource::Keyboard(KeyboardScheme::Arrows),
         }
     }
 }
@@ -31,7 +32,7 @@ pub struct ActionInput {
 /// Input source tracking
 #[derive(Reflect, Clone, Debug, PartialEq)]
 pub enum InputSource {
-    Keyboard(crate::settings::KeyboardScheme),
+    Keyboard(KeyboardScheme),
     Gamepad(Entity),
     Mouse,
     Touch,
@@ -43,7 +44,7 @@ pub enum InputSource {
 #[reflect(Component)]
 pub struct PlayerInputMapping {
     pub player_id: u32,
-    pub keyboard_scheme: Option<crate::settings::KeyboardScheme>,
+    pub keyboard_scheme: Option<KeyboardScheme>,
     pub gamepad_entity: Option<Entity>,
     pub mouse_enabled: bool,
     pub touch_enabled: bool,
@@ -53,7 +54,7 @@ impl Default for PlayerInputMapping {
     fn default() -> Self {
         Self {
             player_id: 0,
-            keyboard_scheme: Some(crate::settings::KeyboardScheme::WASD),
+            keyboard_scheme: Some(KeyboardScheme::WASD),
             gamepad_entity: None,
             mouse_enabled: true,
             touch_enabled: true,
