@@ -76,11 +76,6 @@ pub fn handle_collection_events(
                 StateScoped(crate::screens::Screen::Gameplay),
             ));
         }
-
-        info!(
-            "Spawned collection effect at {:?} with color {:?}",
-            event.position, event.color
-        );
     }
 }
 

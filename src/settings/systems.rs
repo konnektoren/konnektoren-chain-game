@@ -1,6 +1,9 @@
 use super::components::*;
 use bevy::prelude::*;
-use konnektoren_bevy::input::device::{AvailableInputDevices, InputDevice, KeyboardScheme};
+use konnektoren_bevy::input::{
+    InputDeviceAssignment,
+    device::{AvailableInputDevices, InputDevice, KeyboardScheme},
+};
 use std::collections::HashSet;
 
 /// Resource to track already warned about device assignments
@@ -195,38 +198,6 @@ fn assign_multiplayer_devices(
     );
 }
 
-/// System to validate player configurations with rate-limited warnings
-pub fn validate_player_configurations(
-    game_settings: Res<GameSettings>,
-    available_devices: Res<AvailableInputDevices>,
-    assignment: Res<InputDeviceAssignment>,
-    mut warning_tracker: ResMut<DeviceWarningTracker>,
-) {
-    if !assignment.conflicts.is_empty() {
-        warn!("Input device conflicts detected:");
-        for conflict in &assignment.conflicts {
-            warn!("  - {}", conflict);
-        }
-    }
-
-    // Validate that all assigned devices are available with rate-limited warnings
-    for player in &game_settings.multiplayer.players {
-        if !player.input.primary_input.is_available(&available_devices) {
-            let warning_key = (player.name.clone(), player.input.primary_input.name());
-
-            // Only warn if we haven't warned about this combination before
-            if !warning_tracker.warned_combinations.contains(&warning_key) {
-                warn!(
-                    "Player {} assigned unavailable device: {}",
-                    player.name,
-                    player.input.primary_input.name()
-                );
-                warning_tracker.warned_combinations.insert(warning_key);
-            }
-        }
-    }
-}
-
 /// System to mark manual assignments and prevent auto-override
 pub fn track_manual_assignments(
     assignment: Res<InputDeviceAssignment>,
@@ -237,9 +208,4 @@ pub fn track_manual_assignments(
         info!("Disabling auto-assign due to manual device selection");
         game_settings.multiplayer.auto_assign_inputs = false;
     }
-}
-
-/// System to clear warning tracker when entering device selection
-pub fn clear_device_warnings(mut warning_tracker: ResMut<DeviceWarningTracker>) {
-    warning_tracker.warned_combinations.clear();
 }

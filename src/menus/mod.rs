@@ -1,5 +1,4 @@
 mod credits;
-mod device_selection;
 mod main;
 mod pause;
 mod settings;
@@ -14,7 +13,6 @@ pub(super) fn plugin(app: &mut App) {
         main::plugin,
         settings::plugin,
         pause::plugin,
-        device_selection::plugin,
     ));
 }
 

@@ -2,7 +2,10 @@ use super::components::*;
 use crate::screens::Screen;
 use crate::settings::GameSettings;
 use bevy::prelude::*;
-use konnektoren_bevy::input::device::{AvailableInputDevices, InputDevice};
+use konnektoren_bevy::input::{
+    InputDeviceAssignment,
+    device::{AvailableInputDevices, InputDevice},
+};
 
 /// System to detect and track connected gamepads
 pub fn detect_gamepads(
@@ -273,7 +276,7 @@ pub fn assign_gamepads_to_players(
     mut player_query: Query<&mut PlayerInputMapping, With<crate::player::Player>>,
     game_settings: Res<GameSettings>,
     available_devices: Res<AvailableInputDevices>,
-    assignment: Res<crate::settings::InputDeviceAssignment>,
+    assignment: Res<InputDeviceAssignment>,
 ) {
     if !game_settings.is_changed() && !available_devices.is_changed() && !assignment.is_changed() {
         return;

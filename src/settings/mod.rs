@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use konnektoren_bevy::input::device::AvailableInputDevices;
 
 mod components;
-pub mod device_selection_ui;
 pub mod systems;
 
 pub use components::*;
@@ -15,13 +14,11 @@ pub(super) fn plugin(app: &mut App) {
         .register_type::<InputSettings>()
         .register_type::<MultiplayerSettings>()
         .register_type::<AvailableInputDevices>()
-        .register_type::<InputDeviceAssignment>()
         .register_type::<DeviceSelectionState>();
 
     // Initialize resources
     app.init_resource::<GameSettings>()
         .init_resource::<AvailableInputDevices>()
-        .init_resource::<InputDeviceAssignment>()
         .init_resource::<DeviceSelectionState>()
         .init_resource::<DeviceWarningTracker>();
 
@@ -32,7 +29,6 @@ pub(super) fn plugin(app: &mut App) {
             detect_input_devices,
             auto_assign_input_devices,
             track_manual_assignments,
-            validate_player_configurations,
         ),
     );
 }

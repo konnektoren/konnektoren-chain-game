@@ -174,59 +174,6 @@ impl Default for DisplaySettings {
     }
 }
 
-/// Resource for managing input device assignments
-#[derive(Resource, Reflect, Default, Clone)]
-#[reflect(Resource)]
-pub struct InputDeviceAssignment {
-    pub assignments: Vec<(u32, InputDevice)>,
-    pub conflicts: Vec<String>,
-}
-
-impl InputDeviceAssignment {
-    pub fn assign_device(&mut self, player_id: u32, device: InputDevice) {
-        self.assignments.retain(|(id, _)| *id != player_id);
-        self.assignments.push((player_id, device));
-        self.validate_assignments();
-    }
-
-    pub fn get_device_for_player(&self, player_id: u32) -> Option<&InputDevice> {
-        self.assignments
-            .iter()
-            .find(|(id, _)| *id == player_id)
-            .map(|(_, device)| device)
-    }
-
-    fn validate_assignments(&mut self) {
-        self.conflicts.clear();
-
-        for i in 0..self.assignments.len() {
-            for j in (i + 1)..self.assignments.len() {
-                let (player1, device1) = &self.assignments[i];
-                let (player2, device2) = &self.assignments[j];
-
-                if devices_conflict(device1, device2) {
-                    self.conflicts.push(format!(
-                        "Player {} and Player {} both assigned to {}",
-                        player1 + 1,
-                        player2 + 1,
-                        device1.name()
-                    ));
-                }
-            }
-        }
-    }
-}
-
-fn devices_conflict(device1: &InputDevice, device2: &InputDevice) -> bool {
-    match (device1, device2) {
-        (InputDevice::Keyboard(scheme1), InputDevice::Keyboard(scheme2)) => scheme1 == scheme2,
-        (InputDevice::Gamepad(id1), InputDevice::Gamepad(id2)) => id1 == id2,
-        (InputDevice::Mouse, InputDevice::Mouse) => true,
-        (InputDevice::Touch, InputDevice::Touch) => true,
-        _ => false,
-    }
-}
-
 /// Resource to track device selection state
 #[derive(Resource, Reflect, Default)]
 #[reflect(Resource)]

@@ -1,10 +1,9 @@
 use crate::settings::GameSettings;
 use crate::{menus::Menu, screens::Screen};
 use bevy::{input::common_conditions::input_just_pressed, prelude::*};
-use konnektoren_bevy::input::device::AvailableInputDevices;
+use konnektoren_bevy::input::InputEvent;
 use konnektoren_bevy::screens::settings::*;
 use konnektoren_bevy::screens::settings::{SettingsScreenConfig, SettingsScreenEvent};
-use konnektoren_bevy::settings::{SettingType, SettingValue};
 
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Menu::Settings), spawn_settings_screen)
@@ -13,25 +12,21 @@ pub(super) fn plugin(app: &mut App) {
             Update,
             (
                 handle_settings_events,
+                handle_input_configuration_events,
                 go_back.run_if(in_state(Menu::Settings).and(input_just_pressed(KeyCode::Escape))),
             ),
         );
 }
 
-fn spawn_settings_screen(
-    mut commands: Commands,
-    game_settings: Res<GameSettings>,
-    global_volume: Res<GlobalVolume>,
-    available_devices: Res<AvailableInputDevices>,
-) {
+fn spawn_settings_screen(mut commands: Commands, game_settings: Res<GameSettings>) {
     info!("Spawning settings screen");
 
     let config = SettingsScreenConfig::new("Settings")
         .mobile_layout(false)
         .with_back_button_text("Back")
-        .add_section(create_audio_section(&global_volume))
+        .add_section(SettingsSection::audio_section())
         .add_section(create_multiplayer_section(&game_settings))
-        .add_section(create_device_section(&available_devices));
+        .add_section(SettingsSection::input_section());
 
     commands.spawn((
         Name::new("Game Settings Screen"),
@@ -52,19 +47,6 @@ fn cleanup_settings_screen(
         commands.entity(entity).despawn();
     }
     info!("Cleaned up settings screen");
-}
-
-fn create_audio_section(global_volume: &GlobalVolume) -> SettingsSection {
-    let current_volume = global_volume.volume.to_linear();
-
-    SettingsSection::new("Audio").add_setting(ScreenSettingsItem::slider(
-        "master_volume",
-        "Master Volume",
-        current_volume,
-        0.0,
-        3.0,
-        0.1, // Same range as your original (0.0 to 3.0)
-    ))
 }
 
 fn create_multiplayer_section(game_settings: &GameSettings) -> SettingsSection {
@@ -91,43 +73,6 @@ fn create_multiplayer_section(game_settings: &GameSettings) -> SettingsSection {
             "auto_detect_players",
             "Auto Detect Players",
             game_settings.multiplayer.auto_detect_players,
-        ))
-}
-
-fn create_device_section(available_devices: &AvailableInputDevices) -> SettingsSection {
-    let gamepad_count = available_devices.gamepads.len();
-
-    // Create a status string similar to your original
-    let device_status = format!(
-        "Gamepads: {} | Keyboard: {} | Mouse: {}",
-        gamepad_count,
-        if available_devices.keyboard {
-            "✓"
-        } else {
-            "✗"
-        },
-        if available_devices.mouse {
-            "✓"
-        } else {
-            "✗"
-        }
-    );
-
-    SettingsSection::new("Input Devices")
-        .add_setting(ScreenSettingsItem::text(
-            "device_status",
-            "Device Status",
-            device_status,
-            None,
-        ))
-        .add_setting(ScreenSettingsItem::new(
-            "configure_players",
-            "Configure Players",
-            SettingType::Custom {
-                validator: |_| true,
-                display_fn: |_| "Click to Configure".to_string(),
-            },
-            SettingValue::String("configure".to_string()),
         ))
 }
 
@@ -208,11 +153,107 @@ fn handle_settings_events(
     }
 }
 
-fn go_back(screen: Res<State<Screen>>, mut next_menu: ResMut<NextState<Menu>>) {
-    info!("Going back via escape key");
-    next_menu.set(if screen.get() == &Screen::Title {
-        Menu::Main
+fn handle_input_configuration_events(
+    mut input_config_events: EventReader<InputConfigurationEvent>,
+    mut input_events: EventReader<InputEvent>,
+    mut commands: Commands,
+    mut game_settings: ResMut<GameSettings>,
+    input_config_query: Query<Entity, With<ActiveInputConfiguration>>,
+) {
+    for event in input_config_events.read() {
+        match event {
+            InputConfigurationEvent::Close => {
+                info!("Input configuration closed, respawning settings screen");
+
+                // Clean up input configuration
+                for entity in input_config_query.iter() {
+                    commands.entity(entity).despawn();
+                }
+
+                // Respawn the settings screen
+                let config = SettingsScreenConfig::new("Settings")
+                    .mobile_layout(false)
+                    .with_back_button_text("Back")
+                    .add_section(SettingsSection::audio_section())
+                    .add_section(create_multiplayer_section(&game_settings))
+                    .add_section(SettingsSection::input_section());
+
+                commands.spawn((
+                    Name::new("Game Settings Screen"),
+                    config,
+                    StateScoped(Menu::Settings),
+                ));
+            }
+            InputConfigurationEvent::DeviceAssigned { player_id, device } => {
+                info!(
+                    "Device {} assigned to player {}",
+                    device.name(),
+                    player_id + 1
+                );
+
+                // Update game settings
+                if let Some(player_settings) = game_settings
+                    .multiplayer
+                    .players
+                    .get_mut(*player_id as usize)
+                {
+                    player_settings.input.primary_input = device.clone();
+                    player_settings.enabled = true;
+                }
+                game_settings.multiplayer.auto_assign_inputs = false;
+            }
+            InputConfigurationEvent::DeviceUnassigned { player_id } => {
+                info!("Device unassigned from player {}", player_id + 1);
+
+                if let Some(player_settings) = game_settings
+                    .multiplayer
+                    .players
+                    .get_mut(*player_id as usize)
+                {
+                    player_settings.enabled = false;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Handle input system events for logging
+    for event in input_events.read() {
+        match event {
+            InputEvent::DeviceAssigned { player_id, device } => {
+                info!(
+                    "Input system: Device {} assigned to player {}",
+                    device.name(),
+                    player_id + 1
+                );
+            }
+            InputEvent::DeviceUnassigned { player_id } => {
+                info!(
+                    "Input system: Device unassigned from player {}",
+                    player_id + 1
+                );
+            }
+            _ => {}
+        }
+    }
+}
+
+fn go_back(
+    screen: Res<State<Screen>>,
+    mut next_menu: ResMut<NextState<Menu>>,
+    mut config_events: EventWriter<InputConfigurationEvent>,
+    input_config_query: Query<&ActiveInputConfiguration>,
+) {
+    // If input configuration is open, close it instead of going back
+    if !input_config_query.is_empty() {
+        info!("Escape pressed in input configuration, closing it");
+        config_events.write(InputConfigurationEvent::Close);
     } else {
-        Menu::Pause
-    });
+        info!("Going back via escape key");
+        next_menu.set(if screen.get() == &Screen::Title {
+            Menu::Main
+        } else {
+            Menu::Pause
+        });
+    }
 }

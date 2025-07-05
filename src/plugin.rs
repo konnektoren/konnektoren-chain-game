@@ -35,6 +35,7 @@ impl Plugin for AppPlugin {
         app.add_plugins((
             KonnektorenThemePlugin,
             UIPlugin,
+            InputPlugin,
             ScreensPlugin,
             SettingsPlugin,
         ));
