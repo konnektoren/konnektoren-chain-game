@@ -1,12 +1,12 @@
 use super::components::*;
 use crate::{
-    input::{InputController, PlayerInputMapping},
     map::{GridMap, GridPosition},
     options::{OptionCollectible, OptionType},
     screens::Screen,
     settings::GameSettings,
 };
 use bevy::prelude::*;
+use konnektoren_bevy::input::{InputController, PlayerInputMapping};
 
 /// System to spawn the player at the center of the grid with enhanced visuals
 pub fn spawn_player(
@@ -227,8 +227,7 @@ pub fn handle_player_input(
             continue;
         }
 
-        // Use input from the InputController
-        controller.movement_input = input_controller.movement_input;
+        controller.movement_input = input_controller.movement;
     }
 }
 

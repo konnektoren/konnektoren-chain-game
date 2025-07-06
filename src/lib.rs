@@ -11,7 +11,6 @@ mod chain;
 mod dev_tools;
 mod effects;
 mod gameplay;
-mod input;
 mod map;
 mod menus;
 mod options;
