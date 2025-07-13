@@ -1,0 +1,11 @@
+id: "level-a1"
+name: "Level A1"
+challenges:
+  - id: "articles-1"
+    name: "Artikel 1"
+    description: "Build your confidence with German articles. Practice with common household items, basic food vocabulary, and everyday objects. Learn simple patterns to help remember article gender."
+    challenge: "articles"
+    variant: "multiple-choice-circle"
+    tasks: 12
+    unlock_points: 10
+    position: [1000, 5355]

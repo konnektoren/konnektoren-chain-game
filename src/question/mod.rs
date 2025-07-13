@@ -1,3 +1,4 @@
+use crate::game_state::GameState;
 use bevy::prelude::*;
 
 mod components;
@@ -14,7 +15,7 @@ pub(super) fn plugin(app: &mut App) {
 
     app.add_systems(
         OnEnter(crate::screens::Screen::Gameplay),
-        setup_question_system,
+        setup_question_system.run_if(|game_state: Res<GameState>| game_state.is_ready()),
     );
 
     app.add_systems(
@@ -24,6 +25,7 @@ pub(super) fn plugin(app: &mut App) {
             update_question_display.in_set(crate::AppSystems::Update),
         )
             .run_if(in_state(crate::screens::Screen::Gameplay))
+            .run_if(resource_exists::<QuestionSystem>)
             .in_set(crate::PausableSystems),
     );
 }

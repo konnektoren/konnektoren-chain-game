@@ -11,6 +11,7 @@ bevy_hanabi = { version = "0.16", optional = true, default-features = false, fea
 ] }
 bevy_egui = "0.34.1"
 konnektoren-bevy = { git = "https://github.com/konnektoren/konnektoren-bevy", features = [
+    "assets",
     "theme",
     "ui",
     "screens",

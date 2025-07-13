@@ -1,40 +1,62 @@
 use super::components::*;
-use crate::{resources::MultipleChoiceChallenge, screens::Screen};
+use crate::{game_state::GameState, resources::MultipleChoiceChallenge, screens::Screen};
 use bevy::prelude::*;
+use konnektoren_bevy::assets::*;
 
 /// System to set up the question system when entering gameplay
 pub fn setup_question_system(
     mut commands: Commands,
     time: Res<Time>,
-    challenge_resource: Option<Res<MultipleChoiceChallenge>>,
+    game_state: Res<GameState>,
+    asset_registry: Option<Res<KonnektorenAssetRegistry>>,
+    challenge_assets: Option<Res<Assets<ChallengeAsset>>>,
 ) {
-    // Get the multiple choice data from the resource or use default
-    let multiple_choice = if let Some(challenge) = challenge_resource {
-        challenge.get().clone()
-    } else {
-        // Initialize the resource if it doesn't exist
-        let challenge = MultipleChoiceChallenge::default();
-        let multiple_choice = challenge.get().clone();
-        commands.insert_resource(challenge);
-        multiple_choice
+    // Wait for game state to be ready
+    if !game_state.is_ready() {
+        info!("Waiting for level and challenge assets to load...");
+        return;
+    }
+
+    let Some(challenge_id) = &game_state.current_challenge_id else {
+        error!("No challenge ID available in game state");
+        return;
     };
 
+    // Load the challenge using the asset system
+    let Some((registry, assets)) = asset_registry.zip(challenge_assets) else {
+        error!("Asset system not available - cannot load challenge");
+        return;
+    };
+
+    let Some(multiple_choice_challenge) =
+        MultipleChoiceChallenge::from_asset_system(&registry, &assets, challenge_id)
+    else {
+        error!("Failed to load challenge '{}' from assets", challenge_id);
+        return;
+    };
+
+    let multiple_choice = multiple_choice_challenge.get();
+
     info!(
-        "Setting up question system with {} questions",
-        multiple_choice.questions.len()
+        "Setting up question system with {} questions from challenge '{}'",
+        multiple_choice.questions.len(),
+        challenge_id
     );
 
     // Use Bevy's elapsed time as seed (works on all platforms)
     let seed = (time.elapsed_secs() * 1000000.0) as u64;
 
     // Initialize the question system
-    let question_system = QuestionSystem::new(&multiple_choice, seed);
+    let question_system = QuestionSystem::new(multiple_choice, seed);
 
     // Spawn the question UI
     spawn_question_ui(&mut commands, &question_system);
 
     // Insert the question system as a resource
     commands.insert_resource(question_system);
+
+    // Also insert the challenge resource for other systems that might need it
+    commands.insert_resource(multiple_choice_challenge);
 }
 
 /// Spawn the question UI overlay

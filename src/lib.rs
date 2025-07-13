@@ -10,6 +10,7 @@ mod chain;
 #[cfg(feature = "dev")]
 mod dev_tools;
 mod effects;
+mod game_state;
 mod gameplay;
 mod map;
 mod menus;

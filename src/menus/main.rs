@@ -1,3 +1,4 @@
+use crate::game_state::GameState;
 use bevy::prelude::*;
 use bevy_egui::{
     EguiContextPass,
@@ -5,7 +6,7 @@ use bevy_egui::{
 };
 use konnektoren_bevy::prelude::*;
 
-use crate::{asset_tracking::ResourceHandles, menus::Menu, screens::Screen};
+use crate::{menus::Menu, screens::Screen};
 
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(OnEnter(Menu::Main), setup_main_menu_marker);
@@ -36,10 +37,11 @@ fn main_menu_egui_ui(
     responsive: Res<ResponsiveInfo>,
     mut next_menu: ResMut<NextState<Menu>>,
     mut next_screen: ResMut<NextState<Screen>>,
-    resource_handles: Res<ResourceHandles>,
+    game_state: Res<GameState>,
     #[cfg(not(target_family = "wasm"))] mut app_exit: EventWriter<AppExit>,
 ) {
     let ctx = contexts.ctx_mut();
+    let assets_ready = game_state.is_ready();
 
     egui::CentralPanel::default()
         .frame(egui::Frame::NONE.fill(theme.base_100))
@@ -65,15 +67,23 @@ fn main_menu_egui_ui(
                 ui.add_space(responsive.spacing(ResponsiveSpacing::Large));
 
                 // Play button
-                if ThemedButton::new("Play", &theme)
+                let button_text = if assets_ready {
+                    "Play"
+                } else {
+                    "Loading Assets..."
+                };
+
+                if ThemedButton::new(button_text, &theme)
                     .responsive(&responsive)
                     .width(250.0)
+                    .enabled(assets_ready)
                     .show(ui)
                     .clicked()
                 {
-                    if resource_handles.is_all_done() {
+                    if assets_ready {
                         next_screen.set(Screen::Gameplay);
                     } else {
+                        // Go to loading screen to wait for assets
                         next_screen.set(Screen::Loading);
                     }
                 }
@@ -129,7 +139,7 @@ fn main_menu_egui_ui(
             });
 
             // Optionally, add bottom space for perfect centering
-            // ui.add_space(top_space);
+            ui.add_space(top_space);
         });
 }
 
